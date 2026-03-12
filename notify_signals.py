@@ -288,6 +288,20 @@ def main():
 
     if not changed:
         print(f"변화 없음 — BIL {curr_bil*100:.0f}% 유지")
+        # 변화 없어도 매일 요약 알림 발송
+        score_lines = "\n".join(
+            f"  {t}: {s:+.3f}  ({'⚠️ 위험' if s < 0 else '✅ 안전'})"
+            for t, s in curr["scores"].items() if s is not None
+        )
+        status = "🔴 위험" if curr_bil > 0 else "🟢 안전"
+        send_notification(
+            f"📊 일일 시그널 요약 — {status}",
+            f"변화 없음 (시스템 정상 작동 중)\n"
+            f"BIL 비중: {curr_bil*100:.0f}%\n\n"
+            f"카나리아 점수:\n{score_lines}\n\n"
+            f"기준: {curr['date']}\n출처: {data_source}",
+            priority="min", tags="white_check_mark"
+        )
         return
 
     # ── 알림 메시지 생성 ────────────────────────────────────────────
