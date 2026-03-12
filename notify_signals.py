@@ -178,27 +178,90 @@ def calc_momentum(returns_list):
     return 12 * r1 + 4 * (c3 - 1) + 2 * (c6 - 1) + 1 * (c12 - 1)
 
 
-# ── 4. 카나리아 상태 계산 ─────────────────────────────────────────────
-def calc_canary_state(canary_data, date_str):
+# ── 4. Z-Score 계산 ───────────────────────────────────────────────────
+def calc_z_score(returns_list, window=36):
+    """
+    returns_list 전체를 이용해 마지막 값의 Z-Score를 계산.
+    window: Z-Score 계산에 사용할 과거 스코어 개수 (기본 36개월)
+    """
+    n = len(returns_list)
+    # 과거 window개의 스코어 계산 (슬라이딩)
+    scores = []
+    for end in range(13, n):          # 최소 13개 필요
+        sub = returns_list[:end]
+        s = calc_momentum(sub)
+        if s is not None:
+            scores.append(s)
+        if len(scores) >= window:
+            break
+
+    if len(scores) < 6:
+        return None
+
+    curr = calc_momentum(returns_list)
+    if curr is None:
+        return None
+
+    mean = sum(scores) / len(scores)
+    std  = (sum((x - mean) ** 2 for x in scores) / len(scores)) ** 0.5
+    if std < 1e-10:
+        return 0.0
+    return (curr - mean) / std
+
+
+def z_score_to_bil(z, safe=-0.5, panic=-2.0):
+    """Z-Score → BIL 비중 (0.0 ~ 1.0)"""
+    if z is None or z >= safe:
+        return 0.0
+    if z <= panic:
+        return 1.0
+    return (safe - z) / (safe - panic)
+
+
+# ── 5. 카나리아 상태 계산 ─────────────────────────────────────────────
+# Z_SCORE_MODE: True = Z-Score 모드, False = 이진 모드
+Z_SCORE_MODE   = True     # ★ True 권장 (절벽 효과 방지)
+Z_SCORE_WINDOW = 36       # 과거 몇 개월 스코어로 정규화할지
+Z_SCORE_SAFE   = -0.5     # 이 Z-Score 이상이면 BIL 0%
+Z_SCORE_PANIC  = -2.0     # 이 Z-Score 이하이면 BIL 100%
+Z_GUARDRAIL    = 0.05     # 전월 BIL 비중과 이 이상 차이날 때만 변경 (5%)
+
+def calc_canary_state(canary_data, date_str, prev_bil_ratio=0.0):
     scores = {t: calc_momentum(r) for t, r in canary_data.items()}
     valid  = [s for s in scores.values() if s is not None]
-
     bad_count = sum(1 for s in valid if s < 0)
-    bil_ratio = (
-        0   if bad_count == 0       else
-        1.0 if bad_count >= len(valid) else
-        0.5
-    )
+
+    if Z_SCORE_MODE:
+        # ── Z-Score 모드 ────────────────────────────────────────────
+        z_scores = {}
+        bil_ratios = []
+        for t, r in canary_data.items():
+            z = calc_z_score(r, Z_SCORE_WINDOW)
+            z_scores[t] = z
+            bil_ratios.append(z_score_to_bil(z, Z_SCORE_SAFE, Z_SCORE_PANIC))
+
+        raw_bil = sum(bil_ratios) / len(bil_ratios) if bil_ratios else 0.0
+        # 가드레일 적용
+        bil_ratio = prev_bil_ratio if abs(raw_bil - prev_bil_ratio) < Z_GUARDRAIL else raw_bil
+    else:
+        # ── 이진 모드 ────────────────────────────────────────────────
+        bil_ratio = (0 if bad_count == 0 else
+                     1.0 if bad_count >= len(valid) else 0.5)
+        z_scores  = {}
+        raw_bil   = bil_ratio
 
     return {
         "date":      date_str,
         "scores":    scores,
+        "z_scores":  z_scores,
         "bad_count": bad_count,
         "bil_ratio": bil_ratio,
+        "raw_bil":   raw_bil,
+        "mode":      "zscore" if Z_SCORE_MODE else "binary",
     }
 
 
-# ── 5. 상태 저장 / 불러오기 ───────────────────────────────────────────
+# ── 6. 상태 저장 / 불러오기 ───────────────────────────────────────────
 def load_prev_state():
     if not os.path.exists(STATE_FILE):
         return None
@@ -254,8 +317,10 @@ def main():
     print(f"\n  [데이터 출처] {data_source}\n")
 
     # ── 카나리아 상태 계산 ──────────────────────────────────────────
-    curr = calc_canary_state(canary_data, date_str)
-    prev = load_prev_state()
+    prev_bil = load_prev_state()
+    prev_bil_ratio = prev_bil.get("bil_ratio", 0.0) if prev_bil else 0.0
+    curr = calc_canary_state(canary_data, date_str, prev_bil_ratio)
+    prev = prev_bil  # 이미 위에서 로드함
     save_state(curr)
 
     # ── 점수 출력 ───────────────────────────────────────────────────
