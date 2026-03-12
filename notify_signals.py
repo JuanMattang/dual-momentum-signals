@@ -68,14 +68,17 @@ def fetch_canary_via_yfinance(tickers):
     for ticker in tickers:
         try:
             # 10개월치 일별 데이터 다운로드
-            hist = yf.download(
+hist = yf.download(
                 ticker, period="10mo", interval="1d",
-                auto_adjust=True, progress=False,
-                multi_level_column=False
+                auto_adjust=True, progress=False
             )
             if hist.empty:
                 print(f"  ✗ {ticker}: 데이터 없음")
                 continue
+
+            # 멀티레벨 컬럼 처리 (yfinance 버전에 따라 다름)
+            if isinstance(hist.columns, pd.MultiIndex):
+                hist.columns = hist.columns.get_level_values(0)
 
             close = hist["Close"].dropna()
 
