@@ -1,0 +1,48 @@
+name: 듀얼 모멘텀 시그널 체크
+
+on:
+  schedule:
+    # 평일 오전 8시 KST (= UTC 전날 23:00, 일~목)
+    - cron: '0 23 * * 0-4'
+  workflow_dispatch:
+    # GitHub 웹에서 수동 실행 버튼 활성화
+
+jobs:
+  signal-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 이전 상태 파일 복원 (캐시)
+        uses: actions/cache@v4
+        with:
+          path: .signal_state.json
+          key: signal-state-${{ github.run_id }}
+          restore-keys: |
+            signal-state-
+
+      - name: Python 3.11 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: yfinance 설치
+        run: pip install yfinance
+
+      - name: 시그널 체크 실행
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python notify_signals.py
+
+      - name: 현재가 업데이트 (live_prices.js)
+        run: python fetch_prices.py
+
+      - name: live_prices.js 커밋 & 푸시
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add live_prices.js
+          git diff --cached --quiet || git commit -m "chore: 현재가 업데이트 $(date +'%Y-%m-%d')"
+          git push
