@@ -1,16 +1,20 @@
-"""
-EWY 월별 수익률을 Yahoo Finance에서 가져와
-DualMomentumDashboard.jsx의 REAL_ETF_DATA에 삽입하는 스크립트.
-
-GitHub Actions에서 1회 수동 실행용.
-"""
-
 import yfinance as yf
 import json
 import re
 import sys
+import os
 
-JSX_FILE = "DualMomentumDashboard.jsx"
+# DualMomentumDashboard.jsx 파일을 저장소 내에서 자동 탐색
+def find_jsx_file():
+    for root, dirs, files in os.walk("."):
+        # .git 폴더 제외
+        dirs[:] = [d for d in dirs if d != '.git']
+        for f in files:
+            if f == "DualMomentumDashboard.jsx":
+                path = os.path.join(root, f)
+                print(f"📍 파일 발견: {path}")
+                return path
+    return None
 
 def fetch_ewy_monthly_returns():
     print("📥 EWY 월별 데이터 수집 중...")
@@ -37,8 +41,13 @@ def fetch_ewy_monthly_returns():
     return monthly_returns
 
 def insert_ewy_into_jsx(monthly_returns):
-    print(f"📂 {JSX_FILE} 읽는 중...")
-    with open(JSX_FILE, "r", encoding="utf-8") as f:
+    jsx_file = find_jsx_file()
+    if not jsx_file:
+        print("❌ DualMomentumDashboard.jsx 파일을 찾지 못했습니다.")
+        sys.exit(1)
+
+    print(f"📂 {jsx_file} 읽는 중...")
+    with open(jsx_file, "r", encoding="utf-8") as f:
         content = f.read()
 
     real_etf_match = re.search(r'const REAL_ETF_DATA = (\{.*?\});', content, re.DOTALL)
@@ -60,7 +69,7 @@ def insert_ewy_into_jsx(monthly_returns):
         existing_dates.update(ticker_data.keys())
 
     ewy_filtered = {k: v for k, v in monthly_returns.items() if k in existing_dates}
-    print(f"   기존 날짜 범위와 교집합: {len(ewy_filtered)}개 (전체 {len(monthly_returns)}개 중)")
+    print(f"   기존 날짜 범위와 교집합: {len(ewy_filtered)}개")
 
     data["EWY"] = ewy_filtered
 
@@ -79,12 +88,12 @@ def insert_ewy_into_jsx(monthly_returns):
             flags=re.DOTALL
         )
 
-    with open(JSX_FILE, "w", encoding="utf-8") as f:
+    with open(jsx_file, "w", encoding="utf-8") as f:
         f.write(new_content)
 
-    print(f"✅ {JSX_FILE} 업데이트 완료 — EWY {len(ewy_filtered)}개 데이터 포인트 삽입")
+    print(f"✅ 업데이트 완료 — EWY {len(ewy_filtered)}개 데이터 포인트 삽입")
 
 if __name__ == "__main__":
     returns = fetch_ewy_monthly_returns()
     insert_ewy_into_jsx(returns)
-    print("🎉 완료! DualMomentumDashboard.jsx에 EWY 데이터가 추가되었습니다.")
+    print("🎉 완료!")
