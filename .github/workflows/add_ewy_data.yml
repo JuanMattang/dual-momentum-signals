@@ -1,7 +1,7 @@
 name: EWY 데이터 REAL_ETF_DATA 추가
 
 on:
-  workflow_dispatch:  # GitHub 웹에서 수동 실행만
+  workflow_dispatch:
 
 jobs:
   add-ewy:
@@ -19,13 +19,13 @@ jobs:
       - name: yfinance 설치
         run: pip install yfinance
 
-      - name: EWY 데이터 수집 및 JSX 업데이트
+      - name: EWY 데이터 수집
         run: python add_ewy_to_dashboard.py
 
-      - name: 변경사항 커밋 & 푸시
+      - name: ewy_returns.json 커밋 & 푸시
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add DualMomentumDashboard.jsx
-          git diff --cached --quiet || git commit -m "feat: EWY 실제 데이터 REAL_ETF_DATA에 추가"
+          git add ewy_returns.json
+          git diff --cached --quiet || git commit -m "feat: EWY 수익률 데이터 저장"
           git push
