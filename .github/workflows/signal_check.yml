@@ -2,8 +2,10 @@ name: 듀얼 모멘텀 시그널 체크
 
 on:
   schedule:
+    # 평일 오전 8시 KST (= UTC 전날 23:00, 일~목)
     - cron: '0 23 * * 0-4'
   workflow_dispatch:
+    # GitHub 웹에서 수동 실행 버튼 활성화
 
 jobs:
   signal-check:
@@ -33,3 +35,25 @@ jobs:
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python notify_signals.py
+
+      - name: 현재가 업데이트 (live_prices.js)
+        run: python fetch_prices.py
+
+      - name: Node.js 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: @babel/standalone 설치
+        run: npm install @babel/standalone
+
+      - name: JSX → dashboard.js 컴파일
+        run: node build.js
+
+      - name: 변경 파일 커밋 & 푸시
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add live_prices.js dashboard.js
+          git diff --cached --quiet || git commit -m "chore: 현재가·대시보드 업데이트 $(date +'%Y-%m-%d')"
+          git push
