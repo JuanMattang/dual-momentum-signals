@@ -44,10 +44,10 @@ jobs:
         with:
           node-version: '20'
 
-      - name: @babel/standalone 설치
+      - name: "babel/standalone 설치"
         run: npm install @babel/standalone
 
-      - name: JSX → dashboard.js 컴파일
+      - name: "JSX -> dashboard.js 컴파일"
         run: node build.js
 
       - name: 변경 파일 커밋 & 푸시
