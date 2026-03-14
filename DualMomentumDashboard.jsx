@@ -141,16 +141,47 @@ function calcCanaryZScore(returns, ticker, monthIdx, windowMonths) {
 
 function zScoreToBilRatio(z, safeThresh, panicThresh) {
   // Z-Score → BIL 비중 매핑 (선형 구간 함수)
-  // z ≥ safeThresh  : BIL 0%
-  // panicThresh < z < safeThresh : 선형 증가
-  // z ≤ panicThresh : BIL 100%
   if (z === null) return 0;
   if (z >= safeThresh) return 0;
   if (z <= panicThresh) return 1.0;
   return (safeThresh - z) / (safeThresh - panicThresh);
 }
 
-function runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, canaryEnabled, canaryTickers, categoryCap, canaryGradual, canaryMaxRisk, canaryZScore, zScoreWindow, zScoreSafe, zScorePanic, zScoreGuardrail) {
+function zScoreToBucket(z, safe, panic, prevRatio, hysteresisEnabled, hysteresisShift) {
+  // Z-Score → 버킷 BIL 비중 (0%, 25%, 50%, 75%, 100%)
+  // 구간을 4등분하여 단계적 진입/복귀
+  if (z === null) return prevRatio ?? 0;
+  const r = panic - safe; // 기본 -1.5
+  // 진입 임계값: [-0.5, -0.875, -1.25, -1.625]
+  const T = [safe, safe + r * 0.25, safe + r * 0.5, safe + r * 0.75];
+
+  // Z-Score로 자연스러운 버킷 계산
+  let nat = 0;
+  if      (z <= T[3]) nat = 1.0;
+  else if (z <= T[2]) nat = 0.75;
+  else if (z <= T[1]) nat = 0.5;
+  else if (z <= T[0]) nat = 0.25;
+
+  const prev = prevRatio ?? 0;
+
+  // 악화 중이거나 히스테리시스 비활성: 자연 버킷 즉시 적용
+  if (!hysteresisEnabled || nat >= prev) return nat;
+
+  // 개선 중 + 히스테리시스: 복귀 임계값을 shift만큼 높여서 더 확실히 회복해야 하강
+  const shift = hysteresisShift ?? 0.375;
+  const TE = T.map(t => t + shift);
+  // 기본값: [-0.125, -0.5, -0.875, -1.25]
+
+  let result = prev;
+  if (result >= 1.0  && z >= TE[3]) result = 0.75;
+  if (result >= 0.75 && z >= TE[2]) result = 0.5;
+  if (result >= 0.5  && z >= TE[1]) result = 0.25;
+  if (result >= 0.25 && z >= TE[0]) result = 0;
+
+  return result;
+}
+
+function runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, canaryEnabled, canaryTickers, categoryCap, canaryGradual, canaryMaxRisk, canaryZScore, zScoreWindow, zScoreSafe, zScorePanic, zScoreGuardrail, bilBucketMode, bilHysteresis, bilHysteresisShift) {
   const signals = [];
   const bilReturns = returns["BIL"] || [];
 
@@ -242,17 +273,33 @@ function runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, 
         // ── Z-Score 모드: 통계적 정규화 기반 선형 BIL 비중 ──────
         const _safe  = zScoreSafe  ?? -0.5;
         const _panic = zScorePanic ?? -2.0;
-        const _ratios = canaryTickers.map(ct => {
-          const z = _zs[ct];
-          return zScoreToBilRatio(z, _safe, _panic);
-        });
-        const _rawBilR = _ratios.reduce((a,b) => a+b, 0) / _ratios.length;
-        // ── 가드레일 밴드 적용 ─────────────────────────────────
-        const _guardrail = (zScoreGuardrail ?? 5) / 100;
-        const _prevBilR  = signals.length > 0
+        const _prevBilR = signals.length > 0
           ? (signals[signals.length-1].canaryBilRatio ?? 0)
           : 0;
-        _bilR = Math.abs(_rawBilR - _prevBilR) < _guardrail ? _prevBilR : _rawBilR;
+        if (bilBucketMode) {
+          // ── 버킷 모드: 4단계 (0/25/50/75/100%) + 히스테리시스 ──
+          const _bucketRatios = canaryTickers.map(ct => {
+            const z = _zs[ct];
+            const prevPerTicker = signals.length > 0
+              ? (signals[signals.length-1]["bucket_" + ct] ?? 0)
+              : 0;
+            return zScoreToBucket(z, _safe, _panic, prevPerTicker, bilHysteresis, bilHysteresisShift ?? 0.375);
+          });
+          // 각 티커 버킷 상태 저장 (히스테리시스용)
+          canaryTickers.forEach((ct, i) => {
+            monthSignal["bucket_" + ct] = _bucketRatios[i];
+          });
+          _bilR = _bucketRatios.reduce((a,b) => a+b, 0) / _bucketRatios.length;
+        } else {
+          // ── 선형 모드 + 가드레일 ───────────────────────────────
+          const _ratios = canaryTickers.map(ct => {
+            const z = _zs[ct];
+            return zScoreToBilRatio(z, _safe, _panic);
+          });
+          const _rawBilR = _ratios.reduce((a,b) => a+b, 0) / _ratios.length;
+          const _guardrail = (zScoreGuardrail ?? 5) / 100;
+          _bilR = Math.abs(_rawBilR - _prevBilR) < _guardrail ? _prevBilR : _rawBilR;
+        }
         monthSignal.zScores = _zs;
         monthSignal.rawBilRatio = _rawBilR;
       } else if (canaryGradual) {
@@ -657,6 +704,9 @@ const DualMomentumDashboard = () => {
   const [zScoreSafe,       setZScoreSafe]       = usePersist("dm_zScoreSafe",       -0.5);
   const [zScorePanic,      setZScorePanic]      = usePersist("dm_zScorePanic",      -2.0);
   const [zScoreGuardrail,  setZScoreGuardrail]  = usePersist("dm_zScoreGuardrail",  5);
+  const [bilBucketMode,    setBilBucketMode]    = usePersist("dm_bilBucketMode",    false);
+  const [bilHysteresis,    setBilHysteresis]    = usePersist("dm_bilHysteresis",    false);
+  const [bilHysteresisShift, setBilHysteresisShift] = usePersist("dm_bilHysteresisShift", 0.375);
 
   // ── 코어-위성 전략 ────────────────────────────────────────────
   const [coreSatEnabled,   setCoreSatEnabled]   = usePersist("dm_coreSatEnabled",   false);
@@ -688,8 +738,8 @@ const DualMomentumDashboard = () => {
 
   const returns = useMemo(() => generateMonthlyReturns(42), []);
   const signals = useMemo(() =>
-    runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, canaryEnabled, canaryTickers, categoryCap, canaryGradual, canaryMaxRisk, canaryZScore, zScoreWindow, zScoreSafe, zScorePanic, zScoreGuardrail),
-    [returns, lookback, topN, volScalingEnabled, volTarget, canaryEnabled, canaryTickers, JSON.stringify(categoryCap), canaryGradual, canaryMaxRisk, canaryZScore, zScoreWindow, zScoreSafe, zScorePanic, zScoreGuardrail]
+    runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, canaryEnabled, canaryTickers, categoryCap, canaryGradual, canaryMaxRisk, canaryZScore, zScoreWindow, zScoreSafe, zScorePanic, zScoreGuardrail, bilBucketMode, bilHysteresis, bilHysteresisShift),
+    [returns, lookback, topN, volScalingEnabled, volTarget, canaryEnabled, canaryTickers, JSON.stringify(categoryCap), canaryGradual, canaryMaxRisk, canaryZScore, zScoreWindow, zScoreSafe, zScorePanic, zScoreGuardrail, bilBucketMode, bilHysteresis, bilHysteresisShift]
   );
 
   // ── 코어-위성: 리스크 패리티 코어 시그널 계산 ──────────────────
@@ -1092,6 +1142,37 @@ const DualMomentumDashboard = () => {
                   style={{ ...inputStyle, width: "44px", fontSize: "11px" }}
                 />
                 <span style={{ fontSize: "11px", color: "#64748b" }}>%</span>
+              </div>
+              {/* ── 버킷 모드 ─────────────────────────────────── */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginTop: "6px" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer",
+                  fontSize: "11px", color: "#38bdf8", whiteSpace: "nowrap" }}>
+                  <input type="checkbox" checked={bilBucketMode} onChange={e => setBilBucketMode(e.target.checked)} />
+                  버킷 모드 (0/25/50/75/100%)
+                </label>
+                {bilBucketMode && (
+                  <>
+                    <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer",
+                      fontSize: "11px", color: "#f472b6", whiteSpace: "nowrap" }}>
+                      <input type="checkbox" checked={bilHysteresis} onChange={e => setBilHysteresis(e.target.checked)} />
+                      히스테리시스 (복귀 지연)
+                    </label>
+                    {bilHysteresis && (
+                      <>
+                        <span style={{ fontSize: "11px", color: "#f472b6", whiteSpace: "nowrap" }}>복귀 임계 shift:</span>
+                        <input
+                          type="number" min="0.1" max="1.0" step="0.125"
+                          value={bilHysteresisShift}
+                          onChange={e => setBilHysteresisShift(parseFloat(e.target.value))}
+                          style={{ ...inputStyle, width: "56px", fontSize: "11px" }}
+                        />
+                        <span style={{ fontSize: "10px", color: "#64748b" }}>
+                          (복귀 기준: 진입+{bilHysteresisShift})
+                        </span>
+                      </>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>
