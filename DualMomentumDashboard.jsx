@@ -232,7 +232,7 @@ function runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, 
       weights: wts,
     };
 
-    // ── 카테고리 쏠림 방지 (그룹별 한도) ──────────────────────────
+    // -- 카테고리 쏠림 방지 (그룹별 한도) --------------------------
     if (categoryCap && typeof categoryCap === "object") {
       const groupTotals = {};
       for (const [ticker, weight] of Object.entries(wts)) {
@@ -270,14 +270,14 @@ function runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, 
 
       let _bilR;
       if (canaryZScore) {
-        // ── Z-Score 모드: 통계적 정규화 기반 선형 BIL 비중 ──────
+        // -- Z-Score 모드: 통계적 정규화 기반 선형 BIL 비중 ------
         const _safe  = zScoreSafe  ?? -0.5;
         const _panic = zScorePanic ?? -2.0;
         const _prevBilR = signals.length > 0
           ? (signals[signals.length-1].canaryBilRatio ?? 0)
           : 0;
         if (bilBucketMode) {
-          // ── 버킷 모드: 4단계 (0/25/50/75/100%) + 히스테리시스 ──
+          // -- 버킷 모드: 4단계 (0/25/50/75/100%) + 히스테리시스 --
           const _bucketRatios = canaryTickers.map(ct => {
             const z = _zs[ct];
             const prevPerTicker = signals.length > 0
@@ -291,7 +291,7 @@ function runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, 
           });
           _bilR = _bucketRatios.reduce((a,b) => a+b, 0) / _bucketRatios.length;
         } else {
-          // ── 선형 모드 + 가드레일 ───────────────────────────────
+          // -- 선형 모드 + 가드레일 -------------------------------
           const _ratios = canaryTickers.map(ct => {
             const z = _zs[ct];
             return zScoreToBilRatio(z, _safe, _panic);
@@ -303,7 +303,7 @@ function runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, 
         monthSignal.zScores = _zs;
         monthSignal.rawBilRatio = _rawBilR;
       } else if (canaryGradual) {
-        // ── 점진적 모드: 신호 세기에 비례한 BIL 비중 ────────────
+        // -- 점진적 모드: 신호 세기에 비례한 BIL 비중 ------------
         const _thresh = (canaryMaxRisk ?? 20) / 100;
         const _risks = canaryTickers.map(ct => {
           const s = _cs[ct];
@@ -312,7 +312,7 @@ function runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, 
         });
         _bilR = _risks.reduce((a, b) => a + b, 0) / _risks.length;
       } else {
-        // ── 이진 모드 (기존): 0 / 50% / 100% ──────────────────
+        // -- 이진 모드 (기존): 0 / 50% / 100% ------------------
         _bilR = _bad === 0 ? 0 : _bad >= canaryTickers.length ? 1.0 : 0.5;
       }
 
@@ -414,7 +414,7 @@ function calcWinRate(stratLine, benchLine) {
   return wins / (stratLine.length - 1);
 }
 
-// ── 리밸런싱 시그널 감지 ──────────────────────────────────────────
+// -- 리밸런싱 시그널 감지 ------------------------------------------
 function calcSignalAlerts(signals, canaryEnabled) {
   if (signals.length < 2) return [];
   const curr = signals[signals.length - 1];
@@ -490,7 +490,7 @@ function getNextRebalanceDate() {
 }
 
 
-// ── 리스크 패리티 코어 계산 ──────────────────────────────────────
+// -- 리스크 패리티 코어 계산 --------------------------------------
 // 역변동성(Inverse Volatility) 가중으로 각 자산의 위험 기여도를 균등화
 function runRiskParity(returns, coreAssets, volWindow) {
   const signals = [];
@@ -513,7 +513,7 @@ function runRiskParity(returns, coreAssets, volWindow) {
   return signals;
 }
 
-// ── 코어-위성 결합 시그널 생성 ────────────────────────────────────
+// -- 코어-위성 결합 시그널 생성 ------------------------------------
 // 코어(리스크 패리티) coreRatio + 위성(DAA) (1-coreRatio) 비중으로 결합
 function runCoreSatellite(satelliteSignals, coreSignals, coreRatio) {
   const coreByMonth = {};
@@ -708,7 +708,7 @@ const DualMomentumDashboard = () => {
   const [bilHysteresis,    setBilHysteresis]    = usePersist("dm_bilHysteresis",    false);
   const [bilHysteresisShift, setBilHysteresisShift] = usePersist("dm_bilHysteresisShift", 0.375);
 
-  // ── 코어-위성 전략 ────────────────────────────────────────────
+  // -- 코어-위성 전략 --------------------------------------------
   const [coreSatEnabled,   setCoreSatEnabled]   = usePersist("dm_coreSatEnabled",   false);
   const [coreSatRatio,     setCoreSatRatio]     = usePersist("dm_coreSatRatio",     20);
   const [coreAssets,       setCoreAssets]       = usePersist("dm_coreAssets",       ["SPLG", "TLT", "TIP", "GLDM"]);
@@ -717,7 +717,7 @@ const DualMomentumDashboard = () => {
   const [btStart, setBtStart] = useState("");
   const [btEnd,   setBtEnd]   = useState("");
 
-  // ── 주문 시트 ─────────────────────────────────────────────────
+  // -- 주문 시트 -------------------------------------------------
   const [portfolioValue, setPortfolioValue] = usePersist("dm_portfolioValue", 10000);
   const [priceOverrides, setPriceOverrides] = useState({});
   const [pricesLoading, setPricesLoading] = useState(false);
@@ -742,13 +742,13 @@ const DualMomentumDashboard = () => {
     [returns, lookback, topN, volScalingEnabled, volTarget, canaryEnabled, canaryTickers, JSON.stringify(categoryCap), canaryGradual, canaryMaxRisk, canaryZScore, zScoreWindow, zScoreSafe, zScorePanic, zScoreGuardrail, bilBucketMode, bilHysteresis, bilHysteresisShift]
   );
 
-  // ── 코어-위성: 리스크 패리티 코어 시그널 계산 ──────────────────
+  // -- 코어-위성: 리스크 패리티 코어 시그널 계산 ------------------
   const coreSignals = useMemo(() =>
     coreSatEnabled ? runRiskParity(returns, coreAssets, coreVolWindow) : [],
     [returns, coreSatEnabled, JSON.stringify(coreAssets), coreVolWindow]
   );
 
-  // ── 코어-위성: 결합 시그널 (위성 × satRatio + 코어 × coreRatio) ─
+  // -- 코어-위성: 결합 시그널 (위성 × satRatio + 코어 × coreRatio) -
   const combinedSignals = useMemo(() =>
     coreSatEnabled && coreSignals.length > 0
       ? runCoreSatellite(signals, coreSignals, coreSatRatio / 100)
@@ -1143,7 +1143,7 @@ const DualMomentumDashboard = () => {
                 />
                 <span style={{ fontSize: "11px", color: "#64748b" }}>%</span>
               </div>
-              {/* ── 버킷 모드 ─────────────────────────────────── */}
+              {/* -- 버킷 모드 ----------------------------------- */}
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginTop: "6px" }}>
                 <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer",
                   fontSize: "11px", color: "#38bdf8", whiteSpace: "nowrap" }}>
@@ -1179,7 +1179,7 @@ const DualMomentumDashboard = () => {
         </div>
       )}
 
-      {/* ── 코어-위성 설정 패널 ──────────────────────────────────── */}
+      {/* -- 코어-위성 설정 패널 ------------------------------------ */}
       {coreSatEnabled && (
         <div style={{ ...paramBarStyle, borderTop: "1px solid #7c3aed", paddingBottom: "8px", paddingTop: "8px", background: "#1a1035" }}>
           <label style={{ fontSize: "12px", color: "#a78bfa", minWidth: "70px", whiteSpace: "nowrap", fontWeight: "600" }}>🏛️ 코어 비중:</label>
@@ -1240,7 +1240,7 @@ const DualMomentumDashboard = () => {
         </div>
       )}
 
-      {/* ── 리밸런싱 시그널 배너 ─────────────────────────────────── */}
+      {/* -- 리밸런싱 시그널 배너 ----------------------------------- */}
       {alerts.length > 0 && (
         <div style={{ background: "#0f172a", borderBottom: "1px solid #334155", padding: "0 16px" }}>
           {alerts.map((alert, i) => (
@@ -1279,7 +1279,7 @@ const DualMomentumDashboard = () => {
         </div>
       )}
 
-      {/* ── 다음 정기 리밸런싱 일정 ──────────────────────────────── */}
+      {/* -- 다음 정기 리밸런싱 일정 -------------------------------- */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "6px 16px",
@@ -1698,7 +1698,7 @@ const DualMomentumDashboard = () => {
               </div>
             </div>
 
-            {/* ── Z-Score vs Binary 모드 비교 ───────────────────── */}
+            {/* -- Z-Score vs Binary 모드 비교 --------------------- */}
             {canaryEnabled && ((() => {
               const sigBinary  = runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, true, canaryTickers, categoryCap, false, canaryMaxRisk, false, zScoreWindow, zScoreSafe, zScorePanic, zScoreGuardrail);
               const sigZScore  = runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, true, canaryTickers, categoryCap, false, canaryMaxRisk, true,  zScoreWindow, zScoreSafe, zScorePanic, zScoreGuardrail);
@@ -1809,7 +1809,7 @@ const DualMomentumDashboard = () => {
           </div>
         )}
 
-        {/* ── 코어-위성 탭 ─────────────────────────────────────────── */}
+        {/* -- 코어-위성 탭 ------------------------------------------- */}
         {activeTab === "coresatellite" && (() => {
           const latestCore = coreSignals[coreSignals.length - 1];
           const latestCombined = combinedSignals[combinedSignals.length - 1];
@@ -1843,7 +1843,7 @@ const DualMomentumDashboard = () => {
 
               {coreSatEnabled && (
                 <>
-                  {/* ── 전략 개요 ──────────────────────────────────── */}
+                  {/* -- 전략 개요 ------------------------------------ */}
                   <div style={{ ...cardStyle, borderColor: "#7c3aed", background: "#1a1035" }}>
                     <h4 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600", color: "#a78bfa" }}>🏛️ 코어-위성 전략 구조</h4>
                     <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "12px" }}>
@@ -1879,7 +1879,7 @@ const DualMomentumDashboard = () => {
                     </div>
                   </div>
 
-                  {/* ── 코어 자산 현재 배분 (리스크 패리티) ─────────── */}
+                  {/* -- 코어 자산 현재 배분 (리스크 패리티) ----------- */}
                   {latestCore && (
                     <div style={cardStyle}>
                       <h4 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600" }}>
@@ -1915,7 +1915,7 @@ const DualMomentumDashboard = () => {
                     </div>
                   )}
 
-                  {/* ── 전체 결합 포트폴리오 ──────────────────────────── */}
+                  {/* -- 전체 결합 포트폴리오 ---------------------------- */}
                   {latestCombined && (
                     <div style={cardStyle}>
                       <h4 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600" }}>
@@ -1979,7 +1979,7 @@ const DualMomentumDashboard = () => {
                     </div>
                   )}
 
-                  {/* ── 성과 비교: 위성 단독 vs 코어-위성 vs 벤치마크 ── */}
+                  {/* -- 성과 비교: 위성 단독 vs 코어-위성 vs 벤치마크 -- */}
                   <div style={cardStyle}>
                     <h4 style={{ margin: "0 0 16px 0", fontSize: "14px", fontWeight: "600" }}>
                       📈 성과 비교 — 위성 단독 vs 코어-위성 전략 (전체 기간)
@@ -2052,7 +2052,7 @@ const DualMomentumDashboard = () => {
                     })()}
                   </div>
 
-                  {/* ── 리스크 패리티 설명 ──────────────────────────── */}
+                  {/* -- 리스크 패리티 설명 ---------------------------- */}
                   <div style={{ ...cardStyle, borderColor: "#334155" }}>
                     <h4 style={{ margin: "0 0 10px 0", fontSize: "13px", fontWeight: "600", color: "#94a3b8" }}>💡 리스크 패리티 코어 자산 추천 근거</h4>
                     <div style={{ fontSize: "12px", color: "#64748b", lineHeight: "1.8" }}>
@@ -2073,7 +2073,7 @@ const DualMomentumDashboard = () => {
           );
         })()}
 
-        {/* ── 주문 시트 탭 ─────────────────────────────────────────── */}
+        {/* -- 주문 시트 탭 ------------------------------------------- */}
         {activeTab === "order" && (() => {
           const wts = latestSignal?.weights || {};
           const allocated = Object.entries(wts)
