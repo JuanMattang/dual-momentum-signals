@@ -1111,6 +1111,7 @@ const DualMomentumDashboard = () => {
               </div>
             )}
             {canaryZScore && (
+              <>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
                 <span style={{ fontSize: "11px", color: "#a78bfa", whiteSpace: "nowrap" }}>기간:</span>
                 <input
@@ -1174,6 +1175,7 @@ const DualMomentumDashboard = () => {
                   </>
                 )}
               </div>
+              </>
             )}
           </div>
         </div>
@@ -1766,8 +1768,8 @@ const DualMomentumDashboard = () => {
                     })}
                   </svg>
                   <div style={{ display: "flex", gap: "16px", marginTop: "8px" }}>
-                    <span style={{ fontSize: "11px", color: "#3b82f6" }}>━ 이진 모드</span>
-                    <span style={{ fontSize: "11px", color: "#7c3aed" }}>╌ Z-Score 모드</span>
+                    <span style={{ fontSize: "11px", color: "#3b82f6" }}>- 이진 모드</span>
+                    <span style={{ fontSize: "11px", color: "#7c3aed" }}>~ Z-Score 모드</span>
                     <span style={{ fontSize: "10px", color: "#64748b" }}>Z-Score 설정: 안전 {zScoreSafe} / 공포 {zScorePanic} / 가드레일 {zScoreGuardrail}%</span>
                   </div>
                 </div>
