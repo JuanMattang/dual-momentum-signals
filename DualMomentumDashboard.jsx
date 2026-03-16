@@ -1314,13 +1314,14 @@ const DualMomentumDashboard = () => {
 
       {/* Tabs */}
       <div style={tabStyle}>
-        {["universe", "signals", "allocation", "rebalancing", "performance", "backtest", "coresatellite", "order"].map(tab => (
+        {["universe", "signals", "allocation", "rebalancing", "performance", "backtest", "coresatellite", "order", "snapshot"].map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             style={{
               ...tabButtonStyle(activeTab === tab),
               ...(tab === "coresatellite" ? { color: activeTab === tab ? "#a78bfa" : "#7c3aed", borderBottom: activeTab === tab ? "2px solid #a78bfa" : "none" } : {}),
+              ...(tab === "snapshot" ? { color: activeTab === tab ? "#34d399" : "#10b981", borderBottom: activeTab === tab ? "2px solid #34d399" : "none" } : {}),
             }}
           >
             {tab === "universe" && "유니버스"}
@@ -1331,6 +1332,7 @@ const DualMomentumDashboard = () => {
             {tab === "backtest" && "백테스팅"}
             {tab === "coresatellite" && "🏛️ 코어-위성"}
             {tab === "order" && "🛒 주문 시트"}
+            {tab === "snapshot" && "📋 리밸런싱 이력"}
           </button>
         ))}
       </div>
@@ -2254,6 +2256,133 @@ const DualMomentumDashboard = () => {
                     실행 후 대시보드를 새로고침하면 현재가(15분 지연)가 자동으로 입력됩니다.
                   </div>
                 </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* -- 리밸런싱 이력 탭 ---------------------------------------- */}
+        {activeTab === "snapshot" && (() => {
+          const RH = window.REBALANCING_HISTORY || null;
+
+          const SnapshotCard = ({ snap, title, accent }) => {
+            if (!snap) return (
+              <div style={{ ...cardStyle, borderColor: "#334155" }}>
+                <div style={{ fontSize: "13px", color: "#475569" }}>{title}: 데이터 없음</div>
+              </div>
+            );
+
+            const canaryEntries = snap.canary ? Object.entries(snap.canary) : [];
+            const bilPct = ((snap.bil_ratio || 0) * 100).toFixed(0);
+
+            return (
+              <div style={{ ...cardStyle, borderColor: accent || "#334155" }}>
+                {/* 헤더 */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+                  <div>
+                    <span style={{ fontSize: "15px", fontWeight: "700", color: accent || "#f1f5f9" }}>{title}</span>
+                    <span style={{ marginLeft: "10px", fontSize: "12px", color: "#64748b" }}>{snap.date}</span>
+                    {snap.type && snap.type !== "오늘" && (
+                      <span style={{ marginLeft: "8px", fontSize: "11px", background: "#1e293b", color: "#94a3b8", padding: "2px 8px", borderRadius: "999px" }}>
+                        {snap.type}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: "13px", color: bilPct > 0 ? "#ef4444" : "#10b981", fontWeight: "600" }}>
+                    BIL {bilPct}%
+                  </div>
+                </div>
+
+                {/* 카나리아 */}
+                {canaryEntries.length > 0 && (
+                  <div style={{ marginBottom: "14px" }}>
+                    <div style={{ fontSize: "11px", color: "#94a3b8", fontWeight: "600", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      카나리아 지표
+                    </div>
+                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                      {canaryEntries.map(([ticker, info]) => {
+                        const z = info.z_score;
+                        const isNeg = z !== null && z < 0;
+                        return (
+                          <div key={ticker} style={{
+                            background: isNeg ? "rgba(239,68,68,0.08)" : "rgba(16,185,129,0.08)",
+                            border: `1px solid ${isNeg ? "#7f1d1d" : "#064e3b"}`,
+                            borderRadius: "8px", padding: "8px 14px", minWidth: "100px"
+                          }}>
+                            <div style={{ fontSize: "13px", fontWeight: "700", color: isNeg ? "#f87171" : "#34d399" }}>{ticker}</div>
+                            <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
+                              모멘텀: {info.score !== null ? (info.score * 100).toFixed(1) + "%" : "—"}
+                            </div>
+                            <div style={{ fontSize: "11px", color: isNeg ? "#f87171" : "#34d399", marginTop: "2px" }}>
+                              Z: {z !== null ? z.toFixed(2) : "—"}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 포트폴리오 */}
+                {snap.portfolio && snap.portfolio.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: "11px", color: "#94a3b8", fontWeight: "600", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      포트폴리오
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid #1e293b" }}>
+                          <th style={{ textAlign: "left",  padding: "6px 8px", color: "#475569", fontSize: "11px" }}>티커</th>
+                          <th style={{ textAlign: "left",  padding: "6px 8px", color: "#475569", fontSize: "11px" }}>이름</th>
+                          <th style={{ textAlign: "right", padding: "6px 8px", color: "#475569", fontSize: "11px" }}>비중</th>
+                          <th style={{ textAlign: "right", padding: "6px 8px", color: "#475569", fontSize: "11px" }}>모멘텀</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {snap.portfolio.map((p, i) => (
+                          <tr key={p.ticker} style={{ borderBottom: "1px solid #0f172a", background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)" }}>
+                            <td style={{ padding: "6px 8px", fontWeight: "700", color: "#7dd3fc" }}>{p.ticker}</td>
+                            <td style={{ padding: "6px 8px", color: "#94a3b8" }}>{p.name}</td>
+                            <td style={{ padding: "6px 8px", textAlign: "right", color: "#f1f5f9", fontWeight: "600" }}>
+                              {(p.weight * 100).toFixed(1)}%
+                            </td>
+                            <td style={{ padding: "6px 8px", textAlign: "right", color: p.score !== undefined ? (p.score >= 0 ? "#10b981" : "#ef4444") : "#475569" }}>
+                              {p.score !== undefined ? (p.score * 100).toFixed(1) + "%" : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          };
+
+          return (
+            <div style={containerStyle}>
+              <div style={{ ...cardStyle, background: "#0c1a2e", borderColor: "#1e40af" }}>
+                <div style={{ fontWeight: "700", fontSize: "15px", marginBottom: "4px" }}>📋 리밸런싱 이력</div>
+                <div style={{ fontSize: "12px", color: "#64748b" }}>
+                  정기(매월 1일), 수시(BIL 비중 변경 시), 오늘의 포트폴리오 스냅샷
+                </div>
+              </div>
+
+              {!RH && (
+                <div style={{ ...cardStyle, borderColor: "#334155", color: "#64748b", fontSize: "13px" }}>
+                  <div style={{ marginBottom: "8px" }}>데이터 없음 — GitHub Actions 워크플로우를 실행하면 자동으로 생성됩니다.</div>
+                  <code style={{ display: "block", background: "#0f172a", padding: "8px 12px", borderRadius: "4px", color: "#7dd3fc", fontSize: "12px" }}>
+                    python save_snapshot.py
+                  </code>
+                </div>
+              )}
+
+              {RH && (
+                <>
+                  <SnapshotCard snap={RH.today}          title="오늘 포트폴리오"       accent="#6366f1" />
+                  <SnapshotCard snap={RH.last_regular}   title="직전 정기 리밸런싱"    accent="#3b82f6" />
+                  <SnapshotCard snap={RH.last_emergency} title="직전 수시 리밸런싱"    accent="#f59e0b" />
+                </>
               )}
             </div>
           );
