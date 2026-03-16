@@ -39,10 +39,21 @@ jobs:
       - name: 현재가 업데이트 (live_prices.js)
         run: python fetch_prices.py
 
-      - name: live_prices.js 커밋 & 푸시
+      - name: Node.js 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: "babel/standalone 설치"
+        run: npm install @babel/standalone
+
+      - name: "JSX -> dashboard.js 컴파일"
+        run: node build.js
+
+      - name: 변경 파일 커밋 & 푸시
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add live_prices.js
-          git diff --cached --quiet || git commit -m "chore: 현재가 업데이트 $(date +'%Y-%m-%d')"
+          git add live_prices.js dashboard.js price_history.json
+          git diff --cached --quiet || git commit -m "chore: 현재가·대시보드·히스토리 업데이트 $(date +'%Y-%m-%d')"
           git push
