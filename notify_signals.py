@@ -4,125 +4,164 @@ notify_signals.py  —  리밸런싱 시그널 감지 & 핸드폰 알림
 ------------------------------------------------------
 매일 자동 실행하면 카나리아 상태 변화를 핸드폰으로 알려줍니다.
 
-★ v2 업그레이드: yfinance 직접 호출로 당월 부분수익률(partial return) 반영
-  → fetch_etf_data.py / fetch_prices.py 를 별도 실행하지 않아도 됩니다.
-  → 오늘 종가 기준의 최신 모멘텀 점수를 계산합니다.
+★ v3 업그레이드: price_history.json 누적 방식
+  - 최초 실행 시 yfinance로 전체 히스토리 다운로드 (1회)
+  - 이후 매일 오늘 종가만 추가
+  - 월별 수익률을 직접 계산 → 대시보드와 동일한 데이터 기반
 
 ■ 최초 설정 (1회)
   1. yfinance 설치
        pip install yfinance --break-system-packages
-
   2. 핸드폰에 'ntfy' 앱 설치
-     - iOS:     https://apps.apple.com/app/ntfy/id1625396347
-     - Android: https://play.google.com/store/apps/details?id=io.heckel.ntfy
-
-  3. 앱에서 구독(Subscribe) → 토픽 이름 입력 (예: dual-momentum-기태)
+  3. 앱에서 구독(Subscribe) → 토픽 이름 입력
   4. 아래 NTFY_TOPIC 에 같은 이름 설정
-
-■ 사용법
-  python notify_signals.py
-  python notify_signals.py /path/to/DualMomentumDashboard.jsx
 """
-
 import sys, os, re, json, urllib.request, urllib.parse
 from datetime import datetime, date
 
 # ══════════════════════════════════════════════════════════════════
 # ★ 설정 — 여기만 수정하세요
 # ══════════════════════════════════════════════════════════════════
-NTFY_TOPIC     = os.environ.get("NTFY_TOPIC", "dual-momentum-alert")  # 환경변수 우선, 없으면 기본값
-NTFY_SERVER    = "https://ntfy.sh"       # 기본 서버 (변경 불필요)
-CANARY_TICKERS = ["AGG", "EEM"]         # 카나리 자산 (AGG, EEM 기본값)
-STATE_FILE     = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                               ".signal_state.json")
-# ══════════════════════════════════════════════════════════════════
+NTFY_TOPIC         = os.environ.get("NTFY_TOPIC", "dual-momentum-alert")
+NTFY_SERVER        = "https://ntfy.sh"
+CANARY_TICKERS     = ["AGG", "EEM"]
+
+BASE_DIR           = os.path.dirname(os.path.abspath(__file__))
+STATE_FILE         = os.path.join(BASE_DIR, ".signal_state.json")
+PRICE_HISTORY_FILE = os.path.join(BASE_DIR, "price_history.json")
 
 JSX_PATH = (
     sys.argv[1]
     if len(sys.argv) > 1
-    else os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                      "DualMomentumDashboard.jsx")
+    else os.path.join(BASE_DIR, "DualMomentumDashboard.jsx")
 )
 
+# ══════════════════════════════════════════════════════════════════
+# ── 1. price_history.json 관리 ────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════
 
-# ── 1. yfinance 직접 호출: 당월 부분수익률 포함 월별 수익률 계산 ─────
-def fetch_canary_via_yfinance(tickers):
+def load_price_history():
+    if not os.path.exists(PRICE_HISTORY_FILE):
+        return {}
+    try:
+        return json.load(open(PRICE_HISTORY_FILE, encoding="utf-8"))
+    except:
+        return {}
+
+def save_price_history(history):
+    json.dump(history, open(PRICE_HISTORY_FILE, "w", encoding="utf-8"),
+              ensure_ascii=False, separators=(",", ":"))
+
+def update_price_history(tickers, history):
     """
-    각 ticker의 월별 수익률 리스트를 반환.
-    마지막 원소 = 당월 현재까지의 부분 수익률 (partial month return).
-    예: [r_5개월전, r_4개월전, ..., r_전월, r_당월partial]
-
-    모멘텀 계산에 필요한 최소 7개월치 수익률을 확보합니다.
+    price_history에 데이터가 없거나 부족하면 전체 히스토리 다운로드(1회).
+    이후에는 최근 며칠치만 받아서 오늘 종가를 추가.
     """
     try:
         import yfinance as yf
         import pandas as pd
     except ImportError:
         print("  yfinance 미설치. pip install yfinance --break-system-packages")
-        return None
+        return history
 
-    result = {}
-    today = date.today()
-    current_ym = today.strftime("%Y-%m")
+    today_str = date.today().strftime("%Y-%m-%d")
+    MIN_DAYS  = 500  # 이 이하면 전체 재다운로드
+
+    needs_bootstrap = any(
+        ticker not in history or len(history.get(ticker, {})) < MIN_DAYS
+        for ticker in tickers
+    )
+
+    period = "max" if needs_bootstrap else "10d"
+    if needs_bootstrap:
+        print("  전체 히스토리 다운로드 중 (최초 1회, 잠시 기다려주세요)...")
+    else:
+        print("  오늘 종가 업데이트 중...")
 
     for ticker in tickers:
         try:
-            # 10개월치 일별 데이터 다운로드
             hist = yf.download(
-                ticker, period="10y", interval="1d",
+                ticker, period=period, interval="1d",
                 auto_adjust=True, progress=False
             )
             if hist.empty:
                 print(f"  ✗ {ticker}: 데이터 없음")
                 continue
 
-            # 멀티레벨 컬럼 처리 (yfinance 버전에 따라 다름)
             if isinstance(hist.columns, pd.MultiIndex):
                 hist.columns = hist.columns.get_level_values(0)
 
             close = hist["Close"].dropna()
 
-            # ── 월말 종가 시리즈 (완전한 달만) ─────────────────────
-            monthly_prices = close.resample("ME").last()
+            if ticker not in history:
+                history[ticker] = {}
 
-            # 이번달이 monthly_prices 마지막에 포함된 경우 제거
-            # (아직 이번달이 끝나지 않았으므로 완전한 달이 아님)
-            if monthly_prices.index[-1].strftime("%Y-%m") == current_ym:
-                monthly_prices = monthly_prices.iloc[:-1]
+            added = 0
+            for dt, price in close.items():
+                date_key = dt.strftime("%Y-%m-%d")
+                if date_key not in history[ticker]:
+                    history[ticker][date_key] = round(float(price), 4)
+                    added += 1
+                elif date_key == today_str:
+                    # 오늘 값은 항상 최신으로 갱신
+                    history[ticker][date_key] = round(float(price), 4)
 
-            if len(monthly_prices) < 2:
-                print(f"  ✗ {ticker}: 월별 데이터 부족")
-                continue
-
-            # ── 당월 부분 수익률 ────────────────────────────────────
-            # 오늘 종가 / 전월 말 종가 - 1
-            today_price        = float(close.iloc[-1])
-            prev_month_end     = float(monthly_prices.iloc[-1])
-            partial_return     = (today_price / prev_month_end) - 1
-
-            # ── 완전한 월별 수익률 (전월까지) ──────────────────────
-            complete_returns   = list(monthly_prices.pct_change().dropna().values)
-
-            # ── 당월 partial 추가 ───────────────────────────────────
-            returns_with_partial = complete_returns + [partial_return]
-
-            if len(returns_with_partial) < 7:
-                print(f"  ✗ {ticker}: 수익률 데이터 부족 ({len(returns_with_partial)}개월)")
-                continue
-
-            result[ticker] = returns_with_partial
-
-            prev_ym   = monthly_prices.index[-1].strftime("%Y-%m")
-            print(f"  ✓ {ticker}: 전월({prev_ym}) 이후 당월 부분수익률 "
-                  f"{partial_return*100:+.2f}% (오늘 기준)")
+            total  = len(history[ticker])
+            latest = max(history[ticker].keys())
+            print(f"  ✓ {ticker}: 총 {total}일치 (최신: {latest}, 신규: {added}일)")
 
         except Exception as e:
             print(f"  ✗ {ticker}: {e}")
 
-    return result if result else None
+    return history
 
 
-# ── 2. JSX 에서 REAL_ETF_DATA 파싱 (yfinance 불가시 fallback) ────────
+def monthly_returns_from_history(history, ticker):
+    """
+    일별 가격 히스토리에서 월별 수익률 리스트 계산.
+    - 완전한 달: 해당 월의 마지막 거래일 종가 기준
+    - 당월 partial: 오늘 종가 / 전월 말 종가 - 1
+    반환: [r_과거, ..., r_전월, r_당월partial]
+    """
+    if ticker not in history or len(history[ticker]) < 30:
+        return None
+
+    prices       = history[ticker]
+    sorted_dates = sorted(prices.keys())
+    current_ym   = date.today().strftime("%Y-%m")
+
+    # 월별 마지막 거래일 종가 추출
+    monthly = {}
+    for d in sorted_dates:
+        ym = d[:7]
+        monthly[ym] = prices[d]  # 같은 달이면 나중 날짜가 덮어씀 → 월말 종가
+
+    sorted_months   = sorted(monthly.keys())
+    complete_months = [ym for ym in sorted_months if ym < current_ym]
+
+    if len(complete_months) < 14:
+        print(f"  ✗ {ticker}: 완전한 월 데이터 부족 ({len(complete_months)}개월)")
+        return None
+
+    # 완전한 달의 월별 수익률
+    complete_returns = []
+    for i in range(1, len(complete_months)):
+        prev_p = monthly[complete_months[i-1]]
+        curr_p = monthly[complete_months[i]]
+        complete_returns.append((curr_p / prev_p) - 1)
+
+    # 당월 partial return
+    last_complete_price = monthly[complete_months[-1]]
+    today_price         = monthly.get(current_ym, last_complete_price)
+    partial_return      = (today_price / last_complete_price) - 1
+
+    return complete_returns + [partial_return]
+
+
+# ══════════════════════════════════════════════════════════════════
+# ── 2. JSX fallback (price_history 없을 때) ───────────────────────
+# ══════════════════════════════════════════════════════════════════
+
 def fetch_canary_via_jsx(jsx_path, tickers):
     if not os.path.exists(jsx_path):
         return None
@@ -139,69 +178,56 @@ def fetch_canary_via_jsx(jsx_path, tickers):
     except Exception as e:
         print(f"  JSX 파싱 오류: {e}")
         return None
-
     result = {}
     for ticker in tickers:
         if ticker not in raw:
             continue
         sorted_dates = sorted(raw[ticker].keys())
         result[ticker] = [raw[ticker][d] for d in sorted_dates]
-
     return result if result else None
 
 
-# ── 3. 가중 모멘텀 계산 — 오리지널 DAA '13612W' 공식 ─────────────────
-# 가중 모멘텀 = 12×r1 + 4×r3 + 2×r6 + 1×r12
+# ══════════════════════════════════════════════════════════════════
+# ── 3. 모멘텀 & Z-Score 계산 ─────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════
+
 def calc_momentum(returns_list):
-    """
-    returns_list 의 마지막 원소가 가장 최근 수익률.
-    최소 13개 필요 (r1 + r3 + r6 + r12 = 12개월 + 당월 partial 1).
-    """
+    """DAA 13612W 공식: 12×r1 + 4×r3 + 2×r6 + 1×r12"""
     r = returns_list
     if len(r) < 13:
         return None
-
-    r1 = r[-1]               # 최근 1개월 (당월 partial 포함)
-
-    c3 = 1.0                 # 최근 3개월 누적
+    r1 = r[-1]
+    c3 = 1.0
     for i in range(-3, 0):
         c3 *= (1 + r[i])
-
-    c6 = 1.0                 # 최근 6개월 누적
+    c6 = 1.0
     for i in range(-6, 0):
         c6 *= (1 + r[i])
-
-    c12 = 1.0                # 최근 12개월 누적
+    c12 = 1.0
     for i in range(-12, 0):
         c12 *= (1 + r[i])
-
     return 12 * r1 + 4 * (c3 - 1) + 2 * (c6 - 1) + 1 * (c12 - 1)
 
 
-# ── 4. Z-Score 계산 ───────────────────────────────────────────────────
 def calc_z_score(returns_list, window=36):
     """
-    returns_list 전체를 이용해 마지막 값의 Z-Score를 계산.
-    window: Z-Score 계산에 사용할 과거 스코어 개수 (기본 36개월)
+    슬라이딩 윈도우로 과거 모멘텀 스코어를 구하고
+    현재 스코어를 그 분포 기준으로 정규화.
     """
-    n = len(returns_list)
-    # 과거 window개의 스코어 계산 (슬라이딩)
+    n      = len(returns_list)
     scores = []
-    for end in range(13, n):          # 최소 13개 필요
+    for end in range(13, n):
         sub = returns_list[:end]
-        s = calc_momentum(sub)
+        s   = calc_momentum(sub)
         if s is not None:
             scores.append(s)
         if len(scores) >= window:
             break
-
     if len(scores) < 6:
         return None
-
     curr = calc_momentum(returns_list)
     if curr is None:
         return None
-
     mean = sum(scores) / len(scores)
     std  = (sum((x - mean) ** 2 for x in scores) / len(scores)) ** 0.5
     if std < 1e-10:
@@ -210,7 +236,6 @@ def calc_z_score(returns_list, window=36):
 
 
 def z_score_to_bil(z, safe=-0.5, panic=-2.0):
-    """Z-Score → BIL 비중 (0.0 ~ 1.0)"""
     if z is None or z >= safe:
         return 0.0
     if z <= panic:
@@ -218,33 +243,32 @@ def z_score_to_bil(z, safe=-0.5, panic=-2.0):
     return (safe - z) / (safe - panic)
 
 
-# ── 5. 카나리아 상태 계산 ─────────────────────────────────────────────
-# Z_SCORE_MODE: True = Z-Score 모드, False = 이진 모드
-Z_SCORE_MODE   = True     # ★ True 권장 (절벽 효과 방지)
-Z_SCORE_WINDOW = 36       # 과거 몇 개월 스코어로 정규화할지
-Z_SCORE_SAFE   = -0.5     # 이 Z-Score 이상이면 BIL 0%
-Z_SCORE_PANIC  = -2.0     # 이 Z-Score 이하이면 BIL 100%
-Z_GUARDRAIL    = 0.05     # 전월 BIL 비중과 이 이상 차이날 때만 변경 (5%)
+# ══════════════════════════════════════════════════════════════════
+# ── 4. 카나리아 상태 계산 ─────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════
+
+Z_SCORE_MODE   = True
+Z_SCORE_WINDOW = 36
+Z_SCORE_SAFE   = -0.5
+Z_SCORE_PANIC  = -2.0
+Z_GUARDRAIL    = 0.05
+
 
 def calc_canary_state(canary_data, date_str, prev_bil_ratio=0.0):
-    scores = {t: calc_momentum(r) for t, r in canary_data.items()}
-    valid  = [s for s in scores.values() if s is not None]
+    scores    = {t: calc_momentum(r) for t, r in canary_data.items()}
+    valid     = [s for s in scores.values() if s is not None]
     bad_count = sum(1 for s in valid if s < 0)
 
     if Z_SCORE_MODE:
-        # ── Z-Score 모드 ────────────────────────────────────────────
-        z_scores = {}
+        z_scores   = {}
         bil_ratios = []
         for t, r in canary_data.items():
             z = calc_z_score(r, Z_SCORE_WINDOW)
             z_scores[t] = z
             bil_ratios.append(z_score_to_bil(z, Z_SCORE_SAFE, Z_SCORE_PANIC))
-
-        raw_bil = sum(bil_ratios) / len(bil_ratios) if bil_ratios else 0.0
-        # 가드레일 적용
+        raw_bil   = sum(bil_ratios) / len(bil_ratios) if bil_ratios else 0.0
         bil_ratio = prev_bil_ratio if abs(raw_bil - prev_bil_ratio) < Z_GUARDRAIL else raw_bil
     else:
-        # ── 이진 모드 ────────────────────────────────────────────────
         bil_ratio = (0 if bad_count == 0 else
                      1.0 if bad_count >= len(valid) else 0.5)
         z_scores  = {}
@@ -261,7 +285,10 @@ def calc_canary_state(canary_data, date_str, prev_bil_ratio=0.0):
     }
 
 
-# ── 6. 상태 저장 / 불러오기 ───────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════
+# ── 5. 상태 저장/불러오기 & 알림 ──────────────────────────────────
+# ══════════════════════════════════════════════════════════════════
+
 def load_prev_state():
     if not os.path.exists(STATE_FILE):
         return None
@@ -274,8 +301,6 @@ def save_state(state):
     json.dump(state, open(STATE_FILE, "w", encoding="utf-8"),
               ensure_ascii=False, indent=2)
 
-
-# ── 6. ntfy 알림 전송 ─────────────────────────────────────────────────
 def send_notification(title, message, priority="default", tags=""):
     url  = f"{NTFY_SERVER}/{urllib.parse.quote(NTFY_TOPIC)}"
     data = message.encode("utf-8")
@@ -290,59 +315,70 @@ def send_notification(title, message, priority="default", tags=""):
             print(f"  ✓ 알림 전송 완료 (HTTP {resp.status})")
     except Exception as e:
         print(f"  ✗ 알림 전송 실패: {e}")
-        print(f"    토픽 확인: {NTFY_TOPIC}")
 
 
-# ── 메인 ──────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════
+# ── 메인 ──────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════
+
 def main():
     now_str  = datetime.now().strftime("%Y-%m-%d %H:%M")
     date_str = datetime.now().strftime("%Y-%m-%d")
     print(f"[{now_str}] 시그널 체크 시작\n")
 
-    # ── 데이터 수집 (yfinance 우선 → JSX fallback) ──────────────────
-    print("카나리아 데이터 수집 중 (yfinance)...")
-    canary_data = fetch_canary_via_yfinance(CANARY_TICKERS)
-    data_source = f"실시간 yfinance ({date_str} 기준)"
+    # ── 가격 히스토리 업데이트 ───────────────────────────────────
+    print("가격 히스토리 업데이트 중...")
+    history = load_price_history()
+    history = update_price_history(CANARY_TICKERS, history)
+    save_price_history(history)
+    print()
 
-    if canary_data is None:
-        print("\nyfinance 실패 — JSX 정적 데이터 사용 (시의성 낮음)\n")
+    # ── 월별 수익률 계산 ─────────────────────────────────────────
+    canary_data = {}
+    for ticker in CANARY_TICKERS:
+        returns = monthly_returns_from_history(history, ticker)
+        if returns is not None:
+            canary_data[ticker] = returns
+            print(f"  {ticker}: {len(returns)}개월치 수익률 준비 완료")
+
+    data_source = f"price_history.json ({date_str} 기준)"
+
+    # fallback: JSX 정적 데이터
+    if not canary_data:
+        print("\nprice_history 실패 — JSX 정적 데이터로 fallback\n")
         canary_data = fetch_canary_via_jsx(JSX_PATH, CANARY_TICKERS)
-        data_source = "JSX 정적 데이터 (fetch_etf_data.py 마지막 실행 기준)"
-
-        if canary_data is None:
+        data_source = "JSX 정적 데이터"
+        if not canary_data:
             print("오류: 데이터를 가져올 수 없습니다.")
-            print("  해결: pip install yfinance --break-system-packages")
             return
 
     print(f"\n  [데이터 출처] {data_source}\n")
 
-    # ── 카나리아 상태 계산 ──────────────────────────────────────────
-    prev_bil = load_prev_state()
-    prev_bil_ratio = prev_bil.get("bil_ratio", 0.0) if prev_bil else 0.0
-    curr = calc_canary_state(canary_data, date_str, prev_bil_ratio)
-    prev = prev_bil  # 이미 위에서 로드함
+    # ── 카나리아 상태 계산 ──────────────────────────────────────
+    prev           = load_prev_state()
+    prev_bil_ratio = prev.get("bil_ratio", 0.0) if prev else 0.0
+    curr           = calc_canary_state(canary_data, date_str, prev_bil_ratio)
     save_state(curr)
 
-    # ── 점수 출력 ───────────────────────────────────────────────────
+    # ── 점수 출력 ───────────────────────────────────────────────
     print(f"기준 날짜: {curr['date']}")
     for ticker, score in curr["scores"].items():
         if score is not None:
-            sign = "🔴 음수 (위험)" if score < 0 else "🟢 양수 (안전)"
-            print(f"  {ticker}: {score:+.4f}  {sign}")
+            z     = curr["z_scores"].get(ticker)
+            z_str = f"  Z={z:+.3f}" if z is not None else ""
+            sign  = "🔴 음수 (위험)" if score < 0 else "🟢 양수 (안전)"
+            print(f"  {ticker}: {score:+.4f}  {sign}{z_str}")
         else:
-            print(f"  {ticker}: N/A (데이터 부족)")
-    print(f"BIL 비중: {curr['bil_ratio']*100:.0f}%\n")
+            print(f"  {ticker}: N/A")
+    print(f"BIL 비중: {curr['bil_ratio']*100:.1f}%\n")
 
-    # ── 상태 변화 감지 ──────────────────────────────────────────────
+    # ── 상태 변화 감지 & 알림 ───────────────────────────────────
     if prev is None:
-        print("이전 상태 없음 — 기준 상태 저장 완료.")
-        print("다음 실행부터 변화를 감지합니다.\n")
+        print("이전 상태 없음 — 기준 상태 저장 완료.\n")
         send_notification(
             "📊 듀얼모멘텀 모니터링 시작",
-            f"시그널 감지 시작\n"
-            f"기준: {curr['date']}\n"
-            f"BIL 비중: {curr['bil_ratio']*100:.0f}%\n"
-            f"출처: {data_source}",
+            f"시그널 감지 시작\n기준: {curr['date']}\n"
+            f"BIL 비중: {curr['bil_ratio']*100:.0f}%\n출처: {data_source}",
             priority="low", tags="chart_increasing"
         )
         return
@@ -351,60 +387,48 @@ def main():
     curr_bil = curr["bil_ratio"]
     changed  = abs(curr_bil - prev_bil) > 0.01
 
+    score_lines = "\n".join(
+        f"  {t}: {s:+.3f}  ({'⚠️ 위험' if s < 0 else '✅ 안전'})"
+        + (f"  Z={curr['z_scores'].get(t):+.3f}"
+           if curr["z_scores"].get(t) is not None else "")
+        for t, s in curr["scores"].items() if s is not None
+    )
+
     if not changed:
-        print(f"변화 없음 — BIL {curr_bil*100:.0f}% 유지")
-        # 변화 없어도 매일 요약 알림 발송
-        score_lines = "\n".join(
-            f"  {t}: {s:+.3f}  ({'⚠️ 위험' if s < 0 else '✅ 안전'})"
-            for t, s in curr["scores"].items() if s is not None
-        )
+        print(f"변화 없음 — BIL {curr_bil*100:.1f}% 유지")
         status = "🔴 위험" if curr_bil > 0 else "🟢 안전"
         send_notification(
             f"📊 일일 시그널 요약 — {status}",
             f"변화 없음 (시스템 정상 작동 중)\n"
-            f"BIL 비중: {curr_bil*100:.0f}%\n\n"
+            f"BIL 비중: {curr_bil*100:.1f}%\n\n"
             f"카나리아 점수:\n{score_lines}\n\n"
             f"기준: {curr['date']}\n출처: {data_source}",
             priority="min", tags="white_check_mark"
         )
         return
 
-    # ── 알림 메시지 생성 ────────────────────────────────────────────
-    score_lines = "\n".join(
-        f"  {t}: {s:+.3f}  ({'⚠️ 위험' if s < 0 else '✅ 안전'})"
-        for t, s in curr["scores"].items() if s is not None
-    )
     footer = f"\n기준: {curr['date']}\n출처: {data_source}"
 
     if prev_bil == 0 and curr_bil > 0:
-        title    = "🔴 카나리아 위험 전환 — 즉시 리밸런싱"
-        message  = (f"위험 신호 감지!\n"
-                    f"BIL 비중: 0% → {curr_bil*100:.0f}%\n\n"
-                    f"점수:\n{score_lines}{footer}")
-        priority = "urgent"
-        tags     = "warning,rotating_light"
-
+        title         = "🔴 카나리아 위험 전환 — 즉시 리밸런싱"
+        message       = (f"위험 신호 감지!\nBIL 비중: 0% → {curr_bil*100:.1f}%\n\n"
+                         f"점수:\n{score_lines}{footer}")
+        priority, tags = "urgent", "warning,rotating_light"
     elif prev_bil > 0 and curr_bil == 0:
-        title    = "🟢 카나리아 위험 해제 — 정상 배분 복귀"
-        message  = (f"카나리아 모두 안전 전환!\n"
-                    f"BIL 비중: {prev_bil*100:.0f}% → 0%\n\n"
-                    f"점수:\n{score_lines}{footer}")
-        priority = "high"
-        tags     = "white_check_mark,chart_increasing"
-
+        title         = "🟢 카나리아 위험 해제 — 정상 배분 복귀"
+        message       = (f"카나리아 모두 안전 전환!\nBIL 비중: {prev_bil*100:.1f}% → 0%\n\n"
+                         f"점수:\n{score_lines}{footer}")
+        priority, tags = "high", "white_check_mark,chart_increasing"
     elif curr_bil > prev_bil:
-        title    = "🟠 위험 수위 상승 — 리밸런싱 권고"
-        message  = (f"BIL 비중 상승: {prev_bil*100:.0f}% → {curr_bil*100:.0f}%\n\n"
-                    f"점수:\n{score_lines}{footer}")
-        priority = "high"
-        tags     = "chart_with_downwards_trend"
-
+        title         = "🟠 위험 수위 상승 — 리밸런싱 권고"
+        message       = (f"BIL 비중 상승: {prev_bil*100:.1f}% → {curr_bil*100:.1f}%\n\n"
+                         f"점수:\n{score_lines}{footer}")
+        priority, tags = "high", "chart_with_downwards_trend"
     else:
-        title    = "🟡 위험 수위 하락"
-        message  = (f"BIL 비중 감소: {prev_bil*100:.0f}% → {curr_bil*100:.0f}%\n\n"
-                    f"점수:\n{score_lines}{footer}")
-        priority = "default"
-        tags     = "chart_with_upwards_trend"
+        title         = "🟡 위험 수위 하락"
+        message       = (f"BIL 비중 감소: {prev_bil*100:.1f}% → {curr_bil*100:.1f}%\n\n"
+                         f"점수:\n{score_lines}{footer}")
+        priority, tags = "default", "chart_with_upwards_trend"
 
     print(f"시그널 변화 감지: {title}")
     send_notification(title, message, priority=priority, tags=tags)
