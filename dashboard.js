@@ -5834,7 +5834,7 @@ function runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, 
           _bilR = Math.abs(_rawBilR - _prevBilR) < _guardrail ? _prevBilR : _rawBilR;
         }
         monthSignal.zScores = _zs;
-        monthSignal.rawBilRatio = _rawBilR;
+        monthSignal.rawBilRatio = typeof _rawBilR !== 'undefined' ? _rawBilR : _bilR;
       } else if (canaryGradual) {
         // -- 점진적 모드: 신호 세기에 비례한 BIL 비중 ------------
         const _thresh = (canaryMaxRisk ?? 20) / 100;
