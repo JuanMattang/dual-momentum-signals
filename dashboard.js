@@ -7231,7 +7231,7 @@ const DualMomentumDashboard = () => {
     }
   }, "\uCD5C\uADFC \uC2E0\uD638: ", latestSignal?.date || "—")), /*#__PURE__*/React.createElement("div", {
     style: tabStyle
-  }, ["universe", "signals", "allocation", "rebalancing", "performance", "backtest", "coresatellite", "order"].map(tab => /*#__PURE__*/React.createElement("button", {
+  }, ["universe", "signals", "allocation", "rebalancing", "performance", "backtest", "coresatellite", "order", "snapshot"].map(tab => /*#__PURE__*/React.createElement("button", {
     key: tab,
     onClick: () => setActiveTab(tab),
     style: {
@@ -7239,9 +7239,13 @@ const DualMomentumDashboard = () => {
       ...(tab === "coresatellite" ? {
         color: activeTab === tab ? "#a78bfa" : "#7c3aed",
         borderBottom: activeTab === tab ? "2px solid #a78bfa" : "none"
+      } : {}),
+      ...(tab === "snapshot" ? {
+        color: activeTab === tab ? "#34d399" : "#10b981",
+        borderBottom: activeTab === tab ? "2px solid #34d399" : "none"
       } : {})
     }
-  }, tab === "universe" && "유니버스", tab === "signals" && "모멘텀 신호", tab === "allocation" && "자산 배분", tab === "rebalancing" && "리밸런싱", tab === "performance" && "성과 분석", tab === "backtest" && "백테스팅", tab === "coresatellite" && "🏛️ 코어-위성", tab === "order" && "🛒 주문 시트"))), /*#__PURE__*/React.createElement("div", {
+  }, tab === "universe" && "유니버스", tab === "signals" && "모멘텀 신호", tab === "allocation" && "자산 배분", tab === "rebalancing" && "리밸런싱", tab === "performance" && "성과 분석", tab === "backtest" && "백테스팅", tab === "coresatellite" && "🏛️ 코어-위성", tab === "order" && "🛒 주문 시트", tab === "snapshot" && "📋 리밸런싱 이력"))), /*#__PURE__*/React.createElement("div", {
     style: containerStyle
   }, activeTab === "universe" && /*#__PURE__*/React.createElement("div", null, ["주식", "채권", "대체", "현금"].map(cat => /*#__PURE__*/React.createElement("div", {
     key: cat
@@ -9134,6 +9138,248 @@ const DualMomentumDashboard = () => {
         marginTop: "8px"
       }
     }, "\uC2E4\uD589 \uD6C4 \uB300\uC2DC\uBCF4\uB4DC\uB97C \uC0C8\uB85C\uACE0\uCE68\uD558\uBA74 \uD604\uC7AC\uAC00(15\uBD84 \uC9C0\uC5F0)\uAC00 \uC790\uB3D9\uC73C\uB85C \uC785\uB825\uB429\uB2C8\uB2E4.")));
+  })(), activeTab === "snapshot" && (() => {
+    const RH = window.REBALANCING_HISTORY || null;
+    const SnapshotCard = ({
+      snap,
+      title,
+      accent
+    }) => {
+      if (!snap) return /*#__PURE__*/React.createElement("div", {
+        style: {
+          ...cardStyle,
+          borderColor: "#334155"
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: "13px",
+          color: "#475569"
+        }
+      }, title, ": \uB370\uC774\uD130 \uC5C6\uC74C"));
+      const canaryEntries = snap.canary ? Object.entries(snap.canary) : [];
+      const bilPct = ((snap.bil_ratio || 0) * 100).toFixed(0);
+      return /*#__PURE__*/React.createElement("div", {
+        style: {
+          ...cardStyle,
+          borderColor: accent || "#334155"
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "14px",
+          flexWrap: "wrap",
+          gap: "8px"
+        }
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: "15px",
+          fontWeight: "700",
+          color: accent || "#f1f5f9"
+        }
+      }, title), /*#__PURE__*/React.createElement("span", {
+        style: {
+          marginLeft: "10px",
+          fontSize: "12px",
+          color: "#64748b"
+        }
+      }, snap.date), snap.type && snap.type !== "오늘" && /*#__PURE__*/React.createElement("span", {
+        style: {
+          marginLeft: "8px",
+          fontSize: "11px",
+          background: "#1e293b",
+          color: "#94a3b8",
+          padding: "2px 8px",
+          borderRadius: "999px"
+        }
+      }, snap.type)), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: "13px",
+          color: bilPct > 0 ? "#ef4444" : "#10b981",
+          fontWeight: "600"
+        }
+      }, "BIL ", bilPct, "%")), canaryEntries.length > 0 && /*#__PURE__*/React.createElement("div", {
+        style: {
+          marginBottom: "14px"
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: "11px",
+          color: "#94a3b8",
+          fontWeight: "600",
+          marginBottom: "8px",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em"
+        }
+      }, "\uCE74\uB098\uB9AC\uC544 \uC9C0\uD45C"), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          gap: "10px",
+          flexWrap: "wrap"
+        }
+      }, canaryEntries.map(([ticker, info]) => {
+        const z = info.z_score;
+        const isNeg = z !== null && z < 0;
+        return /*#__PURE__*/React.createElement("div", {
+          key: ticker,
+          style: {
+            background: isNeg ? "rgba(239,68,68,0.08)" : "rgba(16,185,129,0.08)",
+            border: `1px solid ${isNeg ? "#7f1d1d" : "#064e3b"}`,
+            borderRadius: "8px",
+            padding: "8px 14px",
+            minWidth: "100px"
+          }
+        }, /*#__PURE__*/React.createElement("div", {
+          style: {
+            fontSize: "13px",
+            fontWeight: "700",
+            color: isNeg ? "#f87171" : "#34d399"
+          }
+        }, ticker), /*#__PURE__*/React.createElement("div", {
+          style: {
+            fontSize: "11px",
+            color: "#64748b",
+            marginTop: "2px"
+          }
+        }, "\uBAA8\uBA58\uD140: ", info.score !== null ? (info.score * 100).toFixed(1) + "%" : "—"), /*#__PURE__*/React.createElement("div", {
+          style: {
+            fontSize: "11px",
+            color: isNeg ? "#f87171" : "#34d399",
+            marginTop: "2px"
+          }
+        }, "Z: ", z !== null ? z.toFixed(2) : "—"));
+      }))), snap.portfolio && snap.portfolio.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: "11px",
+          color: "#94a3b8",
+          fontWeight: "600",
+          marginBottom: "8px",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em"
+        }
+      }, "\uD3EC\uD2B8\uD3F4\uB9AC\uC624"), /*#__PURE__*/React.createElement("table", {
+        style: {
+          width: "100%",
+          borderCollapse: "collapse",
+          fontSize: "13px"
+        }
+      }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+        style: {
+          borderBottom: "1px solid #1e293b"
+        }
+      }, /*#__PURE__*/React.createElement("th", {
+        style: {
+          textAlign: "left",
+          padding: "6px 8px",
+          color: "#475569",
+          fontSize: "11px"
+        }
+      }, "\uD2F0\uCEE4"), /*#__PURE__*/React.createElement("th", {
+        style: {
+          textAlign: "left",
+          padding: "6px 8px",
+          color: "#475569",
+          fontSize: "11px"
+        }
+      }, "\uC774\uB984"), /*#__PURE__*/React.createElement("th", {
+        style: {
+          textAlign: "right",
+          padding: "6px 8px",
+          color: "#475569",
+          fontSize: "11px"
+        }
+      }, "\uBE44\uC911"), /*#__PURE__*/React.createElement("th", {
+        style: {
+          textAlign: "right",
+          padding: "6px 8px",
+          color: "#475569",
+          fontSize: "11px"
+        }
+      }, "\uBAA8\uBA58\uD140"))), /*#__PURE__*/React.createElement("tbody", null, snap.portfolio.map((p, i) => /*#__PURE__*/React.createElement("tr", {
+        key: p.ticker,
+        style: {
+          borderBottom: "1px solid #0f172a",
+          background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)"
+        }
+      }, /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "6px 8px",
+          fontWeight: "700",
+          color: "#7dd3fc"
+        }
+      }, p.ticker), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "6px 8px",
+          color: "#94a3b8"
+        }
+      }, p.name), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "6px 8px",
+          textAlign: "right",
+          color: "#f1f5f9",
+          fontWeight: "600"
+        }
+      }, (p.weight * 100).toFixed(1), "%"), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "6px 8px",
+          textAlign: "right",
+          color: p.score !== undefined ? p.score >= 0 ? "#10b981" : "#ef4444" : "#475569"
+        }
+      }, p.score !== undefined ? (p.score * 100).toFixed(1) + "%" : "—")))))));
+    };
+    return /*#__PURE__*/React.createElement("div", {
+      style: containerStyle
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        ...cardStyle,
+        background: "#0c1a2e",
+        borderColor: "#1e40af"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: "700",
+        fontSize: "15px",
+        marginBottom: "4px"
+      }
+    }, "\uD83D\uDCCB \uB9AC\uBC38\uB7F0\uC2F1 \uC774\uB825"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: "12px",
+        color: "#64748b"
+      }
+    }, "\uC815\uAE30(\uB9E4\uC6D4 1\uC77C), \uC218\uC2DC(BIL \uBE44\uC911 \uBCC0\uACBD \uC2DC), \uC624\uB298\uC758 \uD3EC\uD2B8\uD3F4\uB9AC\uC624 \uC2A4\uB0C5\uC0F7")), !RH && /*#__PURE__*/React.createElement("div", {
+      style: {
+        ...cardStyle,
+        borderColor: "#334155",
+        color: "#64748b",
+        fontSize: "13px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginBottom: "8px"
+      }
+    }, "\uB370\uC774\uD130 \uC5C6\uC74C \u2014 GitHub Actions \uC6CC\uD06C\uD50C\uB85C\uC6B0\uB97C \uC2E4\uD589\uD558\uBA74 \uC790\uB3D9\uC73C\uB85C \uC0DD\uC131\uB429\uB2C8\uB2E4."), /*#__PURE__*/React.createElement("code", {
+      style: {
+        display: "block",
+        background: "#0f172a",
+        padding: "8px 12px",
+        borderRadius: "4px",
+        color: "#7dd3fc",
+        fontSize: "12px"
+      }
+    }, "python save_snapshot.py")), RH && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SnapshotCard, {
+      snap: RH.today,
+      title: "\uC624\uB298 \uD3EC\uD2B8\uD3F4\uB9AC\uC624",
+      accent: "#6366f1"
+    }), /*#__PURE__*/React.createElement(SnapshotCard, {
+      snap: RH.last_regular,
+      title: "\uC9C1\uC804 \uC815\uAE30 \uB9AC\uBC38\uB7F0\uC2F1",
+      accent: "#3b82f6"
+    }), /*#__PURE__*/React.createElement(SnapshotCard, {
+      snap: RH.last_emergency,
+      title: "\uC9C1\uC804 \uC218\uC2DC \uB9AC\uBC38\uB7F0\uC2F1",
+      accent: "#f59e0b"
+    })));
   })()));
 };
 const root = ReactDOM.createRoot(document.getElementById("root"));
