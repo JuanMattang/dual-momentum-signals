@@ -69,7 +69,7 @@ def fetch_canary_via_yfinance(tickers):
         try:
             # 10개월치 일별 데이터 다운로드
             hist = yf.download(
-                ticker, period="16mo", interval="1d",
+                ticker, period="10y", interval="1d",
                 auto_adjust=True, progress=False
             )
             if hist.empty:
