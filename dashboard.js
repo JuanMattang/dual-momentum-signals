@@ -6148,85 +6148,282 @@ const SparkLine = ({
     fill: "none"
   }));
 };
-const LineChart = ({
+const InteractiveLineChart = ({
   data,
-  width = 600,
-  height = 300,
-  title = ""
+  height = 350
 }) => {
-  if (!data || data.length === 0) return null;
-  const padding = {
-    top: 20,
-    right: 20,
-    bottom: 40,
-    left: 50
+  const [viewRange, setViewRange] = React.useState([0, 1]);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [dragStart, setDragStart] = React.useState(null);
+  const [hoverIdx, setHoverIdx] = React.useState(null);
+  const svgRef = React.useRef(null);
+  if (!data || data.length < 2) return null;
+  const totalLen = data.length;
+  const vStart = Math.max(0, Math.round(viewRange[0] * (totalLen - 1)));
+  const vEnd = Math.min(totalLen - 1, Math.max(vStart + 1, Math.round(viewRange[1] * (totalLen - 1))));
+  const visible = data.slice(vStart, vEnd + 1);
+  const PAD = {
+    top: 24,
+    right: 24,
+    bottom: 56,
+    left: 62
   };
-  const chartWidth = width - padding.left - padding.right;
-  const chartHeight = height - padding.top - padding.bottom;
-  const stratMin = Math.min(...data.map(d => d.strat || 100));
-  const stratMax = Math.max(...data.map(d => d.strat || 100));
-  const benchMin = Math.min(...data.map(d => d.bench || 100));
-  const benchMax = Math.max(...data.map(d => d.bench || 100));
-  const yMin = Math.min(stratMin, benchMin);
-  const yMax = Math.max(stratMax, benchMax);
+  const SVG_W = 800,
+    SVG_H = height;
+  const CW = SVG_W - PAD.left - PAD.right;
+  const CH = SVG_H - PAD.top - PAD.bottom;
+  const yVals = visible.flatMap(d => [d.strat || 0, d.bench || 0]).filter(v => v > 0);
+  const yMin = Math.min(...yVals) * 0.99;
+  const yMax = Math.max(...yVals) * 1.01;
   const yRange = yMax - yMin || 1;
-  const scaleX = chartWidth / (data.length - 1 || 1);
-  const scaleY = chartHeight / yRange;
-  const stratPoints = data.map((d, i) => {
-    const x = padding.left + i * scaleX;
-    const y = padding.top + chartHeight - (d.strat - yMin) * scaleY;
-    return `${x},${y}`;
-  }).join(" ");
-  const benchPoints = data.map((d, i) => {
-    const x = padding.left + i * scaleX;
-    const y = padding.top + chartHeight - (d.bench - yMin) * scaleY;
-    return `${x},${y}`;
-  }).join(" ");
-  return /*#__PURE__*/React.createElement("svg", {
-    width: width,
-    height: height,
+  const toX = i => PAD.left + i / Math.max(visible.length - 1, 1) * CW;
+  const toY = v => PAD.top + CH - (v - yMin) / yRange * CH;
+  const stratPts = visible.map((d, i) => `${toX(i)},${toY(d.strat)}`).join(" ");
+  const benchPts = visible.map((d, i) => `${toX(i)},${toY(d.bench)}`).join(" ");
+  const step = Math.max(1, Math.ceil(visible.length / 9));
+  const xLabels = visible.reduce((acc, d, i) => {
+    if (i % step === 0 || i === visible.length - 1) acc.push({
+      i,
+      x: toX(i),
+      label: d.label || ""
+    });
+    return acc;
+  }, []);
+  const yTicks = 5;
+  const yLabels = Array.from({
+    length: yTicks + 1
+  }, (_, i) => {
+    const v = yMin + yRange / yTicks * i;
+    return {
+      v,
+      y: toY(v)
+    };
+  });
+  const getSvgFrac = clientX => {
+    if (!svgRef.current) return 0;
+    const rect = svgRef.current.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  };
+  const handleWheel = e => {
+    e.preventDefault();
+    const frac = getSvgFrac(e.clientX);
+    const [s, en] = viewRange;
+    const span = en - s;
+    const factor = e.deltaY > 0 ? 1.25 : 0.8;
+    const newSpan = Math.min(1, Math.max(4 / totalLen, span * factor));
+    const anchor = s + frac * span;
+    let ns = anchor - frac * newSpan;
+    let ne = anchor + (1 - frac) * newSpan;
+    if (ns < 0) {
+      ne -= ns;
+      ns = 0;
+    }
+    if (ne > 1) {
+      ns -= ne - 1;
+      ne = 1;
+    }
+    setViewRange([Math.max(0, ns), Math.min(1, ne)]);
+  };
+  const handleMouseDown = e => {
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX,
+      range: viewRange
+    });
+  };
+  const handleMouseMove = e => {
+    if (isDragging && dragStart) {
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const dx = (e.clientX - dragStart.x) / rect.width;
+      const [s, en] = dragStart.range;
+      const span = en - s;
+      let ns = s - dx,
+        ne = en - dx;
+      if (ns < 0) {
+        ne -= ns;
+        ns = 0;
+      }
+      if (ne > 1) {
+        ns -= ne - 1;
+        ne = 1;
+      }
+      setViewRange([Math.max(0, ns), Math.min(1, ne)]);
+    }
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (rect) {
+      const svgX = (e.clientX - rect.left) * (SVG_W / rect.width);
+      const chartX = svgX - PAD.left;
+      const idx = Math.round(chartX / CW * (visible.length - 1));
+      setHoverIdx(Math.max(0, Math.min(visible.length - 1, idx)));
+    }
+  };
+  const handleMouseUp = () => setIsDragging(false);
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+    setHoverIdx(null);
+  };
+  const h = hoverIdx !== null ? visible[hoverIdx] : null;
+  const hx = hoverIdx !== null ? toX(hoverIdx) : 0;
+  const ttX = hoverIdx !== null ? hx + 10 + 124 > SVG_W - PAD.right ? hx - 134 : hx + 10 : 0;
+  const isZoomed = viewRange[0] > 0.001 || viewRange[1] < 0.999;
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("svg", {
+    ref: svgRef,
+    viewBox: `0 0 ${SVG_W} ${SVG_H}`,
     style: {
       display: "block",
-      margin: "0 auto"
-    }
-  }, /*#__PURE__*/React.createElement("polyline", {
-    points: benchPoints,
+      width: "100%",
+      height: SVG_H,
+      cursor: isDragging ? "grabbing" : "grab",
+      userSelect: "none"
+    },
+    onWheel: handleWheel,
+    onMouseDown: handleMouseDown,
+    onMouseMove: handleMouseMove,
+    onMouseUp: handleMouseUp,
+    onMouseLeave: handleMouseLeave
+  }, yLabels.map(({
+    v,
+    y
+  }) => /*#__PURE__*/React.createElement("line", {
+    key: v,
+    x1: PAD.left,
+    y1: y,
+    x2: SVG_W - PAD.right,
+    y2: y,
+    stroke: "#1e293b",
+    strokeWidth: "1"
+  })), /*#__PURE__*/React.createElement("polyline", {
+    points: benchPts,
     stroke: "#64748b",
-    strokeWidth: "2",
-    fill: "none"
+    strokeWidth: "1.5",
+    fill: "none",
+    strokeOpacity: "0.8"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: `${PAD.left},${PAD.top + CH} ${stratPts} ${toX(visible.length - 1)},${PAD.top + CH}`,
+    fill: "#3b82f6",
+    fillOpacity: "0.06"
   }), /*#__PURE__*/React.createElement("polyline", {
-    points: stratPoints,
+    points: stratPts,
     stroke: "#3b82f6",
     strokeWidth: "2",
     fill: "none"
   }), /*#__PURE__*/React.createElement("line", {
-    x1: padding.left,
-    y1: padding.top,
-    x2: padding.left,
-    y2: padding.top + chartHeight,
-    stroke: "#475569",
+    x1: PAD.left,
+    y1: PAD.top,
+    x2: PAD.left,
+    y2: PAD.top + CH,
+    stroke: "#334155",
     strokeWidth: "1"
   }), /*#__PURE__*/React.createElement("line", {
-    x1: padding.left,
-    y1: padding.top + chartHeight,
-    x2: width - padding.right,
-    y2: padding.top + chartHeight,
-    stroke: "#475569",
+    x1: PAD.left,
+    y1: PAD.top + CH,
+    x2: SVG_W - PAD.right,
+    y2: PAD.top + CH,
+    stroke: "#334155",
+    strokeWidth: "1"
+  }), yLabels.map(({
+    v,
+    y
+  }) => /*#__PURE__*/React.createElement("text", {
+    key: v,
+    x: PAD.left - 6,
+    y: y + 4,
+    textAnchor: "end",
+    fill: "#64748b",
+    fontSize: "11"
+  }, v.toFixed(0))), xLabels.map(({
+    i,
+    x,
+    label
+  }) => /*#__PURE__*/React.createElement("g", {
+    key: i,
+    transform: `translate(${x},${PAD.top + CH + 8})`
+  }, /*#__PURE__*/React.createElement("text", {
+    textAnchor: "end",
+    fill: "#64748b",
+    fontSize: "10",
+    transform: "rotate(-35)"
+  }, label))), h && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("line", {
+    x1: hx,
+    y1: PAD.top,
+    x2: hx,
+    y2: PAD.top + CH,
+    stroke: "#94a3b8",
+    strokeWidth: "1",
+    strokeDasharray: "4,3"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: hx,
+    cy: toY(h.strat),
+    r: "4",
+    fill: "#3b82f6",
+    stroke: "#0f172a",
+    strokeWidth: "1.5"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: hx,
+    cy: toY(h.bench),
+    r: "3.5",
+    fill: "#64748b",
+    stroke: "#0f172a",
+    strokeWidth: "1.5"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: ttX,
+    y: PAD.top + 4,
+    width: 124,
+    height: 64,
+    rx: "4",
+    fill: "#1e293b",
+    stroke: "#334155",
     strokeWidth: "1"
   }), /*#__PURE__*/React.createElement("text", {
-    x: width / 2,
-    y: height - 5,
-    textAnchor: "middle",
-    fill: "#cbd5e1",
-    fontSize: "12"
-  }, "\uC6D4"), /*#__PURE__*/React.createElement("text", {
-    x: 15,
-    y: padding.top + chartHeight / 2,
-    fill: "#cbd5e1",
+    x: ttX + 8,
+    y: PAD.top + 20,
+    fill: "#94a3b8",
+    fontSize: "10"
+  }, h.label), /*#__PURE__*/React.createElement("text", {
+    x: ttX + 8,
+    y: PAD.top + 37,
+    fill: "#3b82f6",
     fontSize: "12",
+    fontWeight: "bold"
+  }, "\uC804\uB7B5 ", h.strat.toFixed(1)), /*#__PURE__*/React.createElement("text", {
+    x: ttX + 8,
+    y: PAD.top + 54,
+    fill: "#94a3b8",
+    fontSize: "12"
+  }, "\uBCA4\uCE58 ", h.bench.toFixed(1))), isZoomed && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("text", {
+    x: SVG_W - PAD.right - 4,
+    y: PAD.top + 14,
+    textAnchor: "end",
+    fill: "#475569",
+    fontSize: "9"
+  }, data[vStart]?.label, " ~ ", data[vEnd]?.label), /*#__PURE__*/React.createElement("g", {
+    onClick: () => setViewRange([0, 1]),
+    style: {
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: SVG_W - PAD.right - 52,
+    y: PAD.top + 20,
+    width: 48,
+    height: 18,
+    rx: "3",
+    fill: "#1e293b",
+    stroke: "#475569"
+  }), /*#__PURE__*/React.createElement("text", {
+    x: SVG_W - PAD.right - 28,
+    y: PAD.top + 32,
     textAnchor: "middle",
-    transform: `rotate(-90 15 ${padding.top + chartHeight / 2})`
-  }, "\uAC00\uCE58"));
+    fill: "#94a3b8",
+    fontSize: "9"
+  }, "\uC804\uCCB4 \uBCF4\uAE30")))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "10px",
+      color: "#475569",
+      textAlign: "center",
+      marginTop: "2px"
+    }
+  }, "\uB9C8\uC6B0\uC2A4 \uD720: \uD655\uB300/\uCD95\uC18C \xA0|\xA0 \uB4DC\uB798\uADF8: \uC774\uB3D9"));
 };
 const DonutChart = ({
   slices,
@@ -6387,13 +6584,19 @@ const DualMomentumDashboard = () => {
   const btPerf = btSignals.length > 0 ? calcPerformance(btSignals, returns, ddStopEnabled, ddStopThreshold) : perf;
   const btSatOnlySignals = filterSignals(signals, btStart, btEnd);
   const btSatOnlyPerf = btSatOnlySignals.length > 0 ? calcPerformance(btSatOnlySignals, returns, ddStopEnabled, ddStopThreshold) : null;
-  const perfChartData = perf.strategyLine.slice(-60).map((s, i) => ({
-    strat: s,
-    bench: perf.benchmarkLine[perf.strategyLine.length - 60 + i]
-  }));
+  const perfLen = perf.strategyLine.length;
+  const perfChartData = perf.strategyLine.slice(-60).map((s, i) => {
+    const origIdx = perfLen - 60 + i;
+    return {
+      strat: s,
+      bench: perf.benchmarkLine[origIdx],
+      label: origIdx > 0 ? combinedSignals[origIdx - 1]?.date || "" : ""
+    };
+  });
   const btChartData = btPerf.strategyLine.map((s, i) => ({
     strat: s,
-    bench: btPerf.benchmarkLine[i]
+    bench: btPerf.benchmarkLine[i],
+    label: i > 0 ? btSignals[i - 1]?.date || "" : ""
   }));
   const allocationSlices = Object.entries(currentAllocation).filter(([_, w]) => w > 0.01).map(([ticker, weight]) => {
     const asset = ASSETS.find(a => a.ticker === ticker);
@@ -7698,9 +7901,8 @@ const DualMomentumDashboard = () => {
       fontSize: "14px",
       fontWeight: "600"
     }
-  }, "\uC131\uACFC \uBE44\uAD50 (\uCD5C\uADFC 60\uAC1C\uC6D4)"), /*#__PURE__*/React.createElement(LineChart, {
+  }, "\uC131\uACFC \uBE44\uAD50 (\uCD5C\uADFC 60\uAC1C\uC6D4)"), /*#__PURE__*/React.createElement(InteractiveLineChart, {
     data: perfChartData,
-    width: 700,
     height: 350
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -7836,9 +8038,8 @@ const DualMomentumDashboard = () => {
       fontSize: "14px",
       fontWeight: "600"
     }
-  }, "\uC131\uACFC \uBE44\uAD50"), /*#__PURE__*/React.createElement(LineChart, {
+  }, "\uC131\uACFC \uBE44\uAD50"), /*#__PURE__*/React.createElement(InteractiveLineChart, {
     data: btChartData,
-    width: 700,
     height: 350
   })), /*#__PURE__*/React.createElement("div", {
     style: cardStyle
