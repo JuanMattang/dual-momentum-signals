@@ -251,7 +251,7 @@ Z_SCORE_MODE   = True
 Z_SCORE_WINDOW = 36
 Z_SCORE_SAFE   = -0.5
 Z_SCORE_PANIC  = -2.0
-Z_GUARDRAIL    = 0.05
+Z_GUARDRAIL    = 0.20
 
 
 def calc_canary_state(canary_data, date_str, prev_bil_ratio=0.0):
