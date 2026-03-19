@@ -337,7 +337,7 @@ def main():
         last_snap_bil = rh["last_regular"]["bil_ratio"]
 
     bil_changed = (last_snap_bil is None or
-                   abs(bil_ratio - last_snap_bil) > 0.01)
+                   abs(bil_ratio - last_snap_bil) >= 0.20)
 
     if is_first_of_month or bil_changed:
         snap_type = "정기" if is_first_of_month else "수시"
