@@ -6179,7 +6179,10 @@ const InteractiveLineChart = ({
   const [isDragging, setIsDragging] = React.useState(false);
   const [dragStart, setDragStart] = React.useState(null);
   const [hoverIdx, setHoverIdx] = React.useState(null);
+  const [navDragging, setNavDragging] = React.useState(false);
+  const [navDragStart, setNavDragStart] = React.useState(null);
   const svgRef = React.useRef(null);
+  const navRef = React.useRef(null);
   if (!data || data.length < 2) return null;
   const totalLen = data.length;
   const vStart = Math.max(0, Math.round(viewRange[0] * (totalLen - 1)));
@@ -6199,8 +6202,8 @@ const InteractiveLineChart = ({
   const yMin = Math.min(...yVals) * 0.99;
   const yMax = Math.max(...yVals) * 1.01;
   const yRange = yMax - yMin || 1;
-  const toX = i => PAD.left + i / Math.max(visible.length - 1, 1) * CW;
-  const toY = v => PAD.top + CH - (v - yMin) / yRange * CH;
+  const toX = i => PAD.left + (i / Math.max(visible.length - 1, 1)) * CW;
+  const toY = v => PAD.top + CH - ((v - yMin) / yRange) * CH;
   const stratPts = visible.map((d, i) => `${toX(i)},${toY(d.strat)}`).join(" ");
   const benchPts = visible.map((d, i) => `${toX(i)},${toY(d.bench)}`).join(" ");
   const step = Math.max(1, Math.ceil(visible.length / 9));
@@ -6216,18 +6219,27 @@ const InteractiveLineChart = ({
   const yLabels = Array.from({
     length: yTicks + 1
   }, (_, i) => {
-    const v = yMin + yRange / yTicks * i;
+    const v = yMin + (yRange / yTicks) * i;
     return {
       v,
       y: toY(v)
     };
   });
-  const getSvgFrac = clientX => {
+  const isZoomed = viewRange[0] > 0.001 || viewRange[1] < 0.999;
+  const isInChartArea = (clientX, clientY) => {
+    if (!svgRef.current) return false;
+    const rect = svgRef.current.getBoundingClientRect();
+    const svgX = (clientX - rect.left) * (SVG_W / rect.width);
+    const svgY = (clientY - rect.top) * (SVG_H / rect.height);
+    return svgX >= PAD.left && svgX <= SVG_W - PAD.right && svgY >= PAD.top && svgY <= PAD.top + CH;
+  };
+  const getSvgFrac = (clientX) => {
     if (!svgRef.current) return 0;
     const rect = svgRef.current.getBoundingClientRect();
     return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
   };
-  const handleWheel = e => {
+  const handleWheel = (e) => {
+    if (!isInChartArea(e.clientX, e.clientY)) return;
     e.preventDefault();
     const frac = getSvgFrac(e.clientX);
     const [s, en] = viewRange;
@@ -6242,19 +6254,20 @@ const InteractiveLineChart = ({
       ns = 0;
     }
     if (ne > 1) {
-      ns -= ne - 1;
+      ns -= (ne - 1);
       ne = 1;
     }
     setViewRange([Math.max(0, ns), Math.min(1, ne)]);
   };
-  const handleMouseDown = e => {
+  const handleMouseDown = (e) => {
+    if (!isInChartArea(e.clientX, e.clientY)) return;
     setIsDragging(true);
     setDragStart({
       x: e.clientX,
       range: viewRange
     });
   };
-  const handleMouseMove = e => {
+  const handleMouseMove = (e) => {
     if (isDragging && dragStart) {
       const rect = svgRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -6268,7 +6281,7 @@ const InteractiveLineChart = ({
         ns = 0;
       }
       if (ne > 1) {
-        ns -= ne - 1;
+        ns -= (ne - 1);
         ne = 1;
       }
       setViewRange([Math.max(0, ns), Math.min(1, ne)]);
@@ -6277,8 +6290,12 @@ const InteractiveLineChart = ({
     if (rect) {
       const svgX = (e.clientX - rect.left) * (SVG_W / rect.width);
       const chartX = svgX - PAD.left;
-      const idx = Math.round(chartX / CW * (visible.length - 1));
-      setHoverIdx(Math.max(0, Math.min(visible.length - 1, idx)));
+      const idx = Math.round((chartX / CW) * (visible.length - 1));
+      if (isInChartArea(e.clientX, e.clientY)) {
+        setHoverIdx(Math.max(0, Math.min(visible.length - 1, idx)));
+      } else {
+        setHoverIdx(null);
+      }
     }
   };
   const handleMouseUp = () => setIsDragging(false);
@@ -6286,18 +6303,159 @@ const InteractiveLineChart = ({
     setIsDragging(false);
     setHoverIdx(null);
   };
+  const handleZoom = (direction) => {
+    const [s, en] = viewRange;
+    const span = en - s;
+    const factor = direction === "in" ? 0.7 : 1.4;
+    const newSpan = Math.min(1, Math.max(4 / totalLen, span * factor));
+    const center = (s + en) / 2;
+    let ns = center - newSpan / 2;
+    let ne = center + newSpan / 2;
+    if (ns < 0) {
+      ne -= ns;
+      ns = 0;
+    }
+    if (ne > 1) {
+      ns -= (ne - 1);
+      ne = 1;
+    }
+    setViewRange([Math.max(0, ns), Math.min(1, ne)]);
+  };
+  const handleNavMouseDown = (e) => {
+    e.stopPropagation();
+    setNavDragging(true);
+    setNavDragStart({
+      x: e.clientX,
+      range: viewRange
+    });
+  };
+  React.useEffect(() => {
+    if (!navDragging) return;
+    const handleNavMove = (e) => {
+      if (!navRef.current || !navDragStart) return;
+      const rect = navRef.current.getBoundingClientRect();
+      const dx = (e.clientX - navDragStart.x) / rect.width;
+      const [s, en] = navDragStart.range;
+      const span = en - s;
+      let ns = s + dx,
+        ne = en + dx;
+      if (ns < 0) {
+        ne -= ns;
+        ns = 0;
+      }
+      if (ne > 1) {
+        ns -= (ne - 1);
+        ne = 1;
+      }
+      setViewRange([Math.max(0, ns), Math.min(1, ne)]);
+    };
+    const handleNavUp = () => setNavDragging(false);
+    window.addEventListener("mousemove", handleNavMove);
+    window.addEventListener("mouseup", handleNavUp);
+    return () => {
+      window.removeEventListener("mousemove", handleNavMove);
+      window.removeEventListener("mouseup", handleNavUp);
+    };
+  }, [navDragging, navDragStart]);
+  const handleNavClick = (e) => {
+    if (!navRef.current) return;
+    const rect = navRef.current.getBoundingClientRect();
+    const frac = (e.clientX - rect.left) / rect.width;
+    const [s, en] = viewRange;
+    const span = en - s;
+    let ns = frac - span / 2;
+    let ne = frac + span / 2;
+    if (ns < 0) {
+      ne -= ns;
+      ns = 0;
+    }
+    if (ne > 1) {
+      ns -= (ne - 1);
+      ne = 1;
+    }
+    setViewRange([Math.max(0, ns), Math.min(1, ne)]);
+  };
   const h = hoverIdx !== null ? visible[hoverIdx] : null;
   const hx = hoverIdx !== null ? toX(hoverIdx) : 0;
-  const ttX = hoverIdx !== null ? hx + 10 + 124 > SVG_W - PAD.right ? hx - 134 : hx + 10 : 0;
-  const isZoomed = viewRange[0] > 0.001 || viewRange[1] < 0.999;
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("svg", {
+  const ttX = hoverIdx !== null ? (hx + 10 + 124 > SVG_W - PAD.right ? hx - 134 : hx + 10) : 0;
+  const navH = 32;
+  const navAllYVals = data.map(d => d.strat || 0).filter(v => v > 0);
+  const navYMin = navAllYVals.length > 0 ? Math.min(...navAllYVals) : 0;
+  const navYMax = navAllYVals.length > 0 ? Math.max(...navAllYVals) : 1;
+  const navYRange = navYMax - navYMin || 1;
+  const navPts = data.map((d, i) => {
+    const x = (i / Math.max(data.length - 1, 1)) * 100;
+    const y = navH - ((((d.strat || 0) - navYMin) / navYRange) * (navH - 4)) - 2;
+    return `${x}%,${y}`;
+  }).join(" ");
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: "4px",
+      marginBottom: "4px",
+      alignItems: "center"
+    }
+  }, isZoomed && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: "10px",
+      color: "#64748b",
+      marginRight: "auto"
+    }
+  }, data[vStart]?.label, " ~ ", data[vEnd]?.label), /*#__PURE__*/React.createElement("button", {
+    onClick: () => handleZoom("in"),
+    style: {
+      width: "28px",
+      height: "28px",
+      background: "#1e293b",
+      border: "1px solid #334155",
+      borderRadius: "4px",
+      color: "#e2e8f0",
+      fontSize: "16px",
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      lineHeight: 1
+    },
+    title: "확대"
+  }, "+"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => handleZoom("out"),
+    style: {
+      width: "28px",
+      height: "28px",
+      background: "#1e293b",
+      border: "1px solid #334155",
+      borderRadius: "4px",
+      color: "#e2e8f0",
+      fontSize: "16px",
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      lineHeight: 1
+    },
+    title: "축소"
+  }, "-"), isZoomed && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setViewRange([0, 1]),
+    style: {
+      height: "28px",
+      padding: "0 10px",
+      background: "#1e293b",
+      border: "1px solid #334155",
+      borderRadius: "4px",
+      color: "#94a3b8",
+      fontSize: "11px",
+      cursor: "pointer"
+    }
+  }, "전체")), /*#__PURE__*/React.createElement("svg", {
     ref: svgRef,
     viewBox: `0 0 ${SVG_W} ${SVG_H}`,
     style: {
       display: "block",
       width: "100%",
       height: SVG_H,
-      cursor: isDragging ? "grabbing" : "grab",
+      cursor: isDragging ? "grabbing" : isZoomed ? "grab" : "crosshair",
       userSelect: "none"
     },
     onWheel: handleWheel,
@@ -6305,7 +6463,13 @@ const InteractiveLineChart = ({
     onMouseMove: handleMouseMove,
     onMouseUp: handleMouseUp,
     onMouseLeave: handleMouseLeave
-  }, yLabels.map(({
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: PAD.left,
+    y: PAD.top,
+    width: CW,
+    height: CH,
+    fill: "transparent"
+  }), yLabels.map(({
     v,
     y
   }) => /*#__PURE__*/React.createElement("line", {
@@ -6414,39 +6578,68 @@ const InteractiveLineChart = ({
     y: PAD.top + 54,
     fill: "#94a3b8",
     fontSize: "12"
-  }, "\uBCA4\uCE58 ", h.bench.toFixed(1))), isZoomed && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("text", {
-    x: SVG_W - PAD.right - 4,
-    y: PAD.top + 14,
-    textAnchor: "end",
-    fill: "#475569",
-    fontSize: "9"
-  }, data[vStart]?.label, " ~ ", data[vEnd]?.label), /*#__PURE__*/React.createElement("g", {
-    onClick: () => setViewRange([0, 1]),
+  }, "\uBCA4\uCE58 ", h.bench.toFixed(1))))), isZoomed && /*#__PURE__*/React.createElement("div", {
+    ref: navRef,
+    onClick: handleNavClick,
     style: {
-      cursor: "pointer"
+      position: "relative",
+      height: navH + 8,
+      background: "#0f172a",
+      border: "1px solid #1e293b",
+      borderRadius: "4px",
+      marginTop: "6px",
+      cursor: "pointer",
+      overflow: "hidden",
+      padding: "4px 0"
     }
-  }, /*#__PURE__*/React.createElement("rect", {
-    x: SVG_W - PAD.right - 52,
-    y: PAD.top + 20,
-    width: 48,
-    height: 18,
-    rx: "3",
-    fill: "#1e293b",
-    stroke: "#475569"
-  }), /*#__PURE__*/React.createElement("text", {
-    x: SVG_W - PAD.right - 28,
-    y: PAD.top + 32,
-    textAnchor: "middle",
-    fill: "#94a3b8",
-    fontSize: "9"
-  }, "\uC804\uCCB4 \uBCF4\uAE30")))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "100%",
+    height: navH,
     style: {
-      fontSize: "10px",
-      color: "#475569",
-      textAlign: "center",
-      marginTop: "2px"
+      display: "block"
+    },
+    preserveAspectRatio: "none"
+  }, /*#__PURE__*/React.createElement("polyline", {
+    points: navPts,
+    stroke: "#334155",
+    strokeWidth: "1",
+    fill: "none",
+    vectorEffect: "non-scaling-stroke"
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: `${viewRange[0] * 100}%`,
+      height: "100%",
+      background: "rgba(15,23,42,0.7)",
+      pointerEvents: "none"
     }
-  }, "\uB9C8\uC6B0\uC2A4 \uD720: \uD655\uB300/\uCD95\uC18C \xA0|\xA0 \uB4DC\uB798\uADF8: \uC774\uB3D9"));
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: 0,
+      right: 0,
+      width: `${(1 - viewRange[1]) * 100}%`,
+      height: "100%",
+      background: "rgba(15,23,42,0.7)",
+      pointerEvents: "none"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    onMouseDown: handleNavMouseDown,
+    style: {
+      position: "absolute",
+      top: 0,
+      left: `${viewRange[0] * 100}%`,
+      width: `${(viewRange[1] - viewRange[0]) * 100}%`,
+      height: "100%",
+      border: "1px solid #3b82f6",
+      borderRadius: "2px",
+      background: "rgba(59,130,246,0.08)",
+      cursor: "grab",
+      minWidth: "12px"
+    }
+  }));
 };
 const DonutChart = ({
   slices,

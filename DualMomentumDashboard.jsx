@@ -630,7 +630,10 @@ const InteractiveLineChart = ({ data, height = 350 }) => {
   const [isDragging, setIsDragging] = React.useState(false);
   const [dragStart, setDragStart] = React.useState(null);
   const [hoverIdx, setHoverIdx] = React.useState(null);
+  const [navDragging, setNavDragging] = React.useState(false);
+  const [navDragStart, setNavDragStart] = React.useState(null);
   const svgRef = React.useRef(null);
+  const navRef = React.useRef(null);
 
   if (!data || data.length < 2) return null;
 
@@ -667,13 +670,26 @@ const InteractiveLineChart = ({ data, height = 350 }) => {
     return { v, y: toY(v) };
   });
 
+  const isZoomed = viewRange[0] > 0.001 || viewRange[1] < 0.999;
+
+  // -- 차트 영역 내부인지 판별 --
+  const isInChartArea = (clientX, clientY) => {
+    if (!svgRef.current) return false;
+    const rect = svgRef.current.getBoundingClientRect();
+    const svgX = (clientX - rect.left) * (SVG_W / rect.width);
+    const svgY = (clientY - rect.top) * (SVG_H / rect.height);
+    return svgX >= PAD.left && svgX <= SVG_W - PAD.right && svgY >= PAD.top && svgY <= PAD.top + CH;
+  };
+
   const getSvgFrac = (clientX) => {
     if (!svgRef.current) return 0;
     const rect = svgRef.current.getBoundingClientRect();
     return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
   };
 
+  // -- 줌: 차트 영역에서만 동작 --
   const handleWheel = (e) => {
+    if (!isInChartArea(e.clientX, e.clientY)) return;
     e.preventDefault();
     const frac = getSvgFrac(e.clientX);
     const [s, en] = viewRange;
@@ -688,7 +704,9 @@ const InteractiveLineChart = ({ data, height = 350 }) => {
     setViewRange([Math.max(0, ns), Math.min(1, ne)]);
   };
 
+  // -- 드래그: 차트 영역에서만 시작 --
   const handleMouseDown = (e) => {
+    if (!isInChartArea(e.clientX, e.clientY)) return;
     setIsDragging(true);
     setDragStart({ x: e.clientX, range: viewRange });
   };
@@ -710,30 +728,131 @@ const InteractiveLineChart = ({ data, height = 350 }) => {
       const svgX = (e.clientX - rect.left) * (SVG_W / rect.width);
       const chartX = svgX - PAD.left;
       const idx = Math.round((chartX / CW) * (visible.length - 1));
-      setHoverIdx(Math.max(0, Math.min(visible.length - 1, idx)));
+      if (isInChartArea(e.clientX, e.clientY)) {
+        setHoverIdx(Math.max(0, Math.min(visible.length - 1, idx)));
+      } else {
+        setHoverIdx(null);
+      }
     }
   };
 
   const handleMouseUp = () => setIsDragging(false);
   const handleMouseLeave = () => { setIsDragging(false); setHoverIdx(null); };
 
+  // -- +/- 줌 버튼 핸들러 --
+  const handleZoom = (direction) => {
+    const [s, en] = viewRange;
+    const span = en - s;
+    const factor = direction === "in" ? 0.7 : 1.4;
+    const newSpan = Math.min(1, Math.max(4 / totalLen, span * factor));
+    const center = (s + en) / 2;
+    let ns = center - newSpan / 2;
+    let ne = center + newSpan / 2;
+    if (ns < 0) { ne -= ns; ns = 0; }
+    if (ne > 1) { ns -= (ne - 1); ne = 1; }
+    setViewRange([Math.max(0, ns), Math.min(1, ne)]);
+  };
+
+  // -- 네비게이션 바 드래그 --
+  const handleNavMouseDown = (e) => {
+    e.stopPropagation();
+    setNavDragging(true);
+    setNavDragStart({ x: e.clientX, range: viewRange });
+  };
+
+  React.useEffect(() => {
+    if (!navDragging) return;
+    const handleNavMove = (e) => {
+      if (!navRef.current || !navDragStart) return;
+      const rect = navRef.current.getBoundingClientRect();
+      const dx = (e.clientX - navDragStart.x) / rect.width;
+      const [s, en] = navDragStart.range;
+      const span = en - s;
+      let ns = s + dx, ne = en + dx;
+      if (ns < 0) { ne -= ns; ns = 0; }
+      if (ne > 1) { ns -= (ne - 1); ne = 1; }
+      setViewRange([Math.max(0, ns), Math.min(1, ne)]);
+    };
+    const handleNavUp = () => setNavDragging(false);
+    window.addEventListener("mousemove", handleNavMove);
+    window.addEventListener("mouseup", handleNavUp);
+    return () => {
+      window.removeEventListener("mousemove", handleNavMove);
+      window.removeEventListener("mouseup", handleNavUp);
+    };
+  }, [navDragging, navDragStart]);
+
+  // -- 네비게이션 바 클릭으로 이동 --
+  const handleNavClick = (e) => {
+    if (!navRef.current) return;
+    const rect = navRef.current.getBoundingClientRect();
+    const frac = (e.clientX - rect.left) / rect.width;
+    const [s, en] = viewRange;
+    const span = en - s;
+    let ns = frac - span / 2;
+    let ne = frac + span / 2;
+    if (ns < 0) { ne -= ns; ns = 0; }
+    if (ne > 1) { ns -= (ne - 1); ne = 1; }
+    setViewRange([Math.max(0, ns), Math.min(1, ne)]);
+  };
+
   const h = hoverIdx !== null ? visible[hoverIdx] : null;
   const hx = hoverIdx !== null ? toX(hoverIdx) : 0;
   const ttX = hoverIdx !== null ? (hx + 10 + 124 > SVG_W - PAD.right ? hx - 134 : hx + 10) : 0;
-  const isZoomed = viewRange[0] > 0.001 || viewRange[1] < 0.999;
+
+  // -- 네비 바용 미니 차트 --
+  const navH = 32;
+  const navAllYVals = data.map(d => d.strat || 0).filter(v => v > 0);
+  const navYMin = navAllYVals.length > 0 ? Math.min(...navAllYVals) : 0;
+  const navYMax = navAllYVals.length > 0 ? Math.max(...navAllYVals) : 1;
+  const navYRange = navYMax - navYMin || 1;
+  const navPts = data.map((d, i) => {
+    const x = (i / Math.max(data.length - 1, 1)) * 100;
+    const y = navH - ((((d.strat || 0) - navYMin) / navYRange) * (navH - 4)) - 2;
+    return `${x}%,${y}`;
+  }).join(" ");
 
   return (
     <div>
+      {/* -- 줌 버튼 바 -- */}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "4px", marginBottom: "4px", alignItems: "center" }}>
+        {isZoomed && (
+          <span style={{ fontSize: "10px", color: "#64748b", marginRight: "auto" }}>
+            {data[vStart]?.label} ~ {data[vEnd]?.label}
+          </span>
+        )}
+        <button
+          onClick={() => handleZoom("in")}
+          style={{ width: "28px", height: "28px", background: "#1e293b", border: "1px solid #334155", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}
+          title="확대"
+        >+</button>
+        <button
+          onClick={() => handleZoom("out")}
+          style={{ width: "28px", height: "28px", background: "#1e293b", border: "1px solid #334155", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}
+          title="축소"
+        >-</button>
+        {isZoomed && (
+          <button
+            onClick={() => setViewRange([0, 1])}
+            style={{ height: "28px", padding: "0 10px", background: "#1e293b", border: "1px solid #334155", borderRadius: "4px", color: "#94a3b8", fontSize: "11px", cursor: "pointer" }}
+          >전체</button>
+        )}
+      </div>
+
+      {/* -- 메인 차트 -- */}
       <svg
         ref={svgRef}
         viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-        style={{ display: "block", width: "100%", height: SVG_H, cursor: isDragging ? "grabbing" : "grab", userSelect: "none" }}
+        style={{ display: "block", width: "100%", height: SVG_H, cursor: isDragging ? "grabbing" : isZoomed ? "grab" : "crosshair", userSelect: "none" }}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
       >
+        {/* 차트 영역 배경 (이벤트 감지용) */}
+        <rect x={PAD.left} y={PAD.top} width={CW} height={CH} fill="transparent" />
+
         {yLabels.map(({ v, y }) => (
           <line key={v} x1={PAD.left} y1={y} x2={SVG_W - PAD.right} y2={y} stroke="#1e293b" strokeWidth="1" />
         ))}
@@ -772,22 +891,40 @@ const InteractiveLineChart = ({ data, height = 350 }) => {
             <text x={ttX + 8} y={PAD.top + 54} fill="#94a3b8" fontSize="12">벤치 {h.bench.toFixed(1)}</text>
           </>
         )}
-
-        {isZoomed && (
-          <>
-            <text x={SVG_W - PAD.right - 4} y={PAD.top + 14} textAnchor="end" fill="#475569" fontSize="9">
-              {data[vStart]?.label} ~ {data[vEnd]?.label}
-            </text>
-            <g onClick={() => setViewRange([0, 1])} style={{ cursor: "pointer" }}>
-              <rect x={SVG_W - PAD.right - 52} y={PAD.top + 20} width={48} height={18} rx="3" fill="#1e293b" stroke="#475569" />
-              <text x={SVG_W - PAD.right - 28} y={PAD.top + 32} textAnchor="middle" fill="#94a3b8" fontSize="9">전체 보기</text>
-            </g>
-          </>
-        )}
       </svg>
-      <div style={{ fontSize: "10px", color: "#475569", textAlign: "center", marginTop: "2px" }}>
-        마우스 휠: 확대/축소 &nbsp;|&nbsp; 드래그: 이동
-      </div>
+
+      {/* -- 네비게이션 바 (줌 상태에서만 표시) -- */}
+      {isZoomed && (
+        <div
+          ref={navRef}
+          onClick={handleNavClick}
+          style={{ position: "relative", height: navH + 8, background: "#0f172a", border: "1px solid #1e293b", borderRadius: "4px", marginTop: "6px", cursor: "pointer", overflow: "hidden", padding: "4px 0" }}
+        >
+          {/* 미니 차트 */}
+          <svg width="100%" height={navH} style={{ display: "block" }} preserveAspectRatio="none">
+            <polyline points={navPts} stroke="#334155" strokeWidth="1" fill="none" vectorEffect="non-scaling-stroke" />
+          </svg>
+          {/* 비활성 영역 (좌) */}
+          <div style={{ position: "absolute", top: 0, left: 0, width: `${viewRange[0] * 100}%`, height: "100%", background: "rgba(15,23,42,0.7)", pointerEvents: "none" }} />
+          {/* 비활성 영역 (우) */}
+          <div style={{ position: "absolute", top: 0, right: 0, width: `${(1 - viewRange[1]) * 100}%`, height: "100%", background: "rgba(15,23,42,0.7)", pointerEvents: "none" }} />
+          {/* 활성 범위 핸들 */}
+          <div
+            onMouseDown={handleNavMouseDown}
+            style={{
+              position: "absolute", top: 0,
+              left: `${viewRange[0] * 100}%`,
+              width: `${(viewRange[1] - viewRange[0]) * 100}%`,
+              height: "100%",
+              border: "1px solid #3b82f6",
+              borderRadius: "2px",
+              background: "rgba(59,130,246,0.08)",
+              cursor: "grab",
+              minWidth: "12px",
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };
