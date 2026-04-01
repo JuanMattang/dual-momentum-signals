@@ -5861,7 +5861,7 @@ function runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, 
   }
   return signals;
 }
-function calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold) {
+function calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate) {
   const strategyLine = [100];
   const benchmarkLine = [100];
   const splgReturns = returns["SPLG"] || [];
@@ -5870,11 +5870,24 @@ function calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold) {
   let stopCooldown = 0;
   let peak = 100;
   let recoverTarget = 0;
+  const costRate = (txCostEnabled && txCostRate > 0) ? txCostRate / 100 : 0;
+  let prevWeights = {};
+  let totalTurnover = 0;
+  let totalTxCost = 0;
+  let rebalCount = 0;
   for (let i = 0; i < signals.length; i++) {
     const sig = signals[i];
     const m = sig.month;
     const bmRet = splgReturns[m] || 0;
     benchmarkLine.push(benchmarkLine[benchmarkLine.length - 1] * (1 + bmRet));
+    let turnover = 0;
+    if (costRate > 0) {
+      const allTickers = new Set([...Object.keys(sig.weights), ...Object.keys(prevWeights)]);
+      for (const t of allTickers) {
+        turnover += Math.abs((sig.weights[t] || 0) - (prevWeights[t] || 0));
+      }
+      turnover /= 2;
+    }
     let portRet = 0;
     if (inStop) {
       portRet = (returns["BIL"] || [])[m] || 0;
@@ -5883,13 +5896,19 @@ function calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold) {
       if (stopCooldown === 0 && curVal >= recoverTarget) {
         inStop = false;
       }
+      prevWeights = { "BIL": 1.0 };
     } else {
       for (const [ticker, weight] of Object.entries(sig.weights)) {
         portRet += weight * ((returns[ticker] || [])[m] || 0);
       }
+      prevWeights = { ...sig.weights };
     }
+    const txCost = turnover * costRate;
+    totalTurnover += turnover;
+    totalTxCost += txCost;
+    if (turnover > 0.001) rebalCount++;
     const prevVal = strategyLine[strategyLine.length - 1];
-    const newVal = prevVal * (1 + portRet);
+    const newVal = prevVal * (1 + portRet - txCost);
     strategyLine.push(newVal);
     if (newVal > peak) peak = newVal;
     if (ddStopEnabled && !inStop) {
@@ -5910,7 +5929,11 @@ function calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold) {
     strategyLine,
     benchmarkLine,
     ddEvents,
-    finalInStop: inStop
+    finalInStop: inStop,
+    totalTurnover,
+    totalTxCost,
+    rebalCount,
+    avgTurnover: signals.length > 0 ? totalTurnover / signals.length : 0
   };
 }
 function calcCAGR(line) {
@@ -6526,6 +6549,8 @@ const DualMomentumDashboard = () => {
   const [coreSatRatio, setCoreSatRatio] = usePersist("dm_coreSatRatio", 20);
   const [coreAssets, setCoreAssets] = usePersist("dm_coreAssets", ["SPLG", "TLT", "TIP", "GLDM"]);
   const [coreVolWindow, setCoreVolWindow] = usePersist("dm_coreVolWindow", 12);
+  const [txCostEnabled, setTxCostEnabled] = usePersist("dm_txCostEnabled", false);
+  const [txCostRate, setTxCostRate] = usePersist("dm_txCostRate", 0.10);
   const [btStart, setBtStart] = useState("");
   const [btEnd, setBtEnd] = useState("");
 
@@ -6553,10 +6578,10 @@ const DualMomentumDashboard = () => {
 
   // -- 코어-위성: 결합 시그널 (위성 × satRatio + 코어 × coreRatio) -
   const combinedSignals = useMemo(() => coreSatEnabled && coreSignals.length > 0 ? runCoreSatellite(signals, coreSignals, coreSatRatio / 100) : signals, [signals, coreSignals, coreSatEnabled, coreSatRatio]);
-  const perf = useMemo(() => calcPerformance(combinedSignals, returns, ddStopEnabled, ddStopThreshold), [combinedSignals, returns, ddStopEnabled, ddStopThreshold]);
+  const perf = useMemo(() => calcPerformance(combinedSignals, returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate), [combinedSignals, returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate]);
 
   // 위성 단독 성과 (코어-위성 비교용)
-  const satOnlyPerf = useMemo(() => coreSatEnabled ? calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold) : null, [signals, returns, ddStopEnabled, ddStopThreshold, coreSatEnabled]);
+  const satOnlyPerf = useMemo(() => coreSatEnabled ? calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate) : null, [signals, returns, ddStopEnabled, ddStopThreshold, coreSatEnabled, txCostEnabled, txCostRate]);
   const latestSignal = combinedSignals[combinedSignals.length - 1];
   const alerts = useMemo(() => calcSignalAlerts(combinedSignals, canaryEnabled), [combinedSignals, canaryEnabled]);
   const nextRebalDate = getNextRebalanceDate();
@@ -6581,9 +6606,9 @@ const DualMomentumDashboard = () => {
     }
   };
   const btSignals = filterSignals(combinedSignals, btStart, btEnd);
-  const btPerf = btSignals.length > 0 ? calcPerformance(btSignals, returns, ddStopEnabled, ddStopThreshold) : perf;
+  const btPerf = btSignals.length > 0 ? calcPerformance(btSignals, returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate) : perf;
   const btSatOnlySignals = filterSignals(signals, btStart, btEnd);
-  const btSatOnlyPerf = btSatOnlySignals.length > 0 ? calcPerformance(btSatOnlySignals, returns, ddStopEnabled, ddStopThreshold) : null;
+  const btSatOnlyPerf = btSatOnlySignals.length > 0 ? calcPerformance(btSatOnlySignals, returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate) : null;
   const perfLen = perf.strategyLine.length;
   const perfChartData = perf.strategyLine.slice(-60).map((s, i) => {
     const origIdx = perfLen - 60 + i;
@@ -6849,7 +6874,22 @@ const DualMomentumDashboard = () => {
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowGroupCaps(v => !v),
     style: toggleButtonStyle(showGroupCaps)
-  }, "\uADF8\uB8F9\uD55C\uB3C4"))), showGroupCaps && /*#__PURE__*/React.createElement("div", {
+  }, "\uADF8\uB8F9\uD55C\uB3C4")), /*#__PURE__*/React.createElement("div", {
+    style: paramItemStyle
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setTxCostEnabled(!txCostEnabled),
+    style: toggleButtonStyle(txCostEnabled)
+  }, "\uAC70\uB798\uBE44\uC6A9"), txCostEnabled && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("input", {
+    type: "range",
+    min: "0.01",
+    max: "0.50",
+    step: "0.01",
+    value: txCostRate,
+    onChange: e => setTxCostRate(parseFloat(e.target.value)),
+    style: { width: "70px", accentColor: "#f59e0b" }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: { fontSize: "12px", fontWeight: "700", minWidth: "42px", color: "#f59e0b" }
+  }, txCostRate.toFixed(2), "%")))), showGroupCaps && /*#__PURE__*/React.createElement("div", {
     style: {
       ...paramBarStyle,
       borderTop: "1px solid #334155",
@@ -8000,7 +8040,11 @@ const DualMomentumDashboard = () => {
       fontWeight: "700",
       color: "#f59e0b"
     }
-  }, (calcWinRate(perf.strategyLine, perf.benchmarkLine) * 100).toFixed(1), "%")))), activeTab === "backtest" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, (calcWinRate(perf.strategyLine, perf.benchmarkLine) * 100).toFixed(1), "%")))), txCostEnabled && /*#__PURE__*/React.createElement("div", {
+    style: { ...cardStyle, borderColor: "#f59e0b33" }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: "12px", color: "#f59e0b", marginBottom: "4px" }
+  }, "\uD83D\uDCB0 \uAC70\uB798\uBE44\uC6A9 \uBC18\uC601 \uC911: \uD3B8\uB3C4 ", txCostRate.toFixed(2), "% \u2014 \uB204\uC801 \uBE44\uC6A9 ", (perf.totalTxCost * 100).toFixed(2), "% / \uB9AC\uBC38\uB7F0\uC2F1 ", perf.rebalCount, "\uD68C / \uC6D4\uD3C9\uADE0 \uD134\uC624\uBC84 ", (perf.avgTurnover * 100).toFixed(2), "%")), activeTab === "backtest" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: cardStyle
   }, /*#__PURE__*/React.createElement("h4", {
     style: {
@@ -8174,8 +8218,8 @@ const DualMomentumDashboard = () => {
   }, ret != null ? (ret * 100).toFixed(0) : "-")))))))), canaryEnabled && (() => {
     const sigBinary = runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, true, canaryTickers, categoryCap, false, canaryMaxRisk, false, zScoreWindow, zScoreSafe, zScorePanic, zScoreGuardrail);
     const sigZScore = runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, true, canaryTickers, categoryCap, false, canaryMaxRisk, true, zScoreWindow, zScoreSafe, zScorePanic, zScoreGuardrail);
-    const perfB = calcPerformance(filterSignals(sigBinary, btStart, btEnd), returns, ddStopEnabled, ddStopThreshold);
-    const perfZ = calcPerformance(filterSignals(sigZScore, btStart, btEnd), returns, ddStopEnabled, ddStopThreshold);
+    const perfB = calcPerformance(filterSignals(sigBinary, btStart, btEnd), returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate);
+    const perfZ = calcPerformance(filterSignals(sigZScore, btStart, btEnd), returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate);
     const compareRows = [{
       label: "CAGR",
       b: (calcCAGR(perfB.strategyLine) * 100).toFixed(1) + "%",
@@ -8409,7 +8453,39 @@ const DualMomentumDashboard = () => {
       fontWeight: "700",
       color: "#f59e0b"
     }
-  }, (calcWinRate(btPerf.strategyLine, btPerf.benchmarkLine) * 100).toFixed(1), "%")))), activeTab === "coresatellite" && (() => {
+  }, (calcWinRate(btPerf.strategyLine, btPerf.benchmarkLine) * 100).toFixed(1), "%")))), txCostEnabled && /*#__PURE__*/React.createElement("div", {
+    style: cardStyle
+  }, /*#__PURE__*/React.createElement("h4", {
+    style: { margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600", color: "#f59e0b" }
+  }, "\uD83D\uDCB0 \uAC70\uB798\uBE44\uC6A9 \uBD84\uC11D (\uD3B8\uB3C4 ", txCostRate.toFixed(2), "%)"), /*#__PURE__*/React.createElement("div", {
+    style: metricsRowStyle
+  }, /*#__PURE__*/React.createElement("div", {
+    style: metricCardStyle
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: "12px", color: "#94a3b8", marginBottom: "4px" }
+  }, "\uB204\uC801 \uAC70\uB798\uBE44\uC6A9"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: "20px", fontWeight: "700", color: "#ef4444" }
+  }, (btPerf.totalTxCost * 100).toFixed(2), "%")), /*#__PURE__*/React.createElement("div", {
+    style: metricCardStyle
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: "12px", color: "#94a3b8", marginBottom: "4px" }
+  }, "\uB9AC\uBC38\uB7F0\uC2F1 \uD69F\uC218"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: "20px", fontWeight: "700", color: "#f59e0b" }
+  }, btPerf.rebalCount, "\uD68C")), /*#__PURE__*/React.createElement("div", {
+    style: metricCardStyle
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: "12px", color: "#94a3b8", marginBottom: "4px" }
+  }, "\uB204\uC801 \uD134\uC624\uBC84"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: "20px", fontWeight: "700", color: "#8b5cf6" }
+  }, (btPerf.totalTurnover * 100).toFixed(1), "%")), /*#__PURE__*/React.createElement("div", {
+    style: metricCardStyle
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: "12px", color: "#94a3b8", marginBottom: "4px" }
+  }, "\uC6D4\uD3C9\uADE0 \uD134\uC624\uBC84"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: "20px", fontWeight: "700", color: "#64748b" }
+  }, (btPerf.avgTurnover * 100).toFixed(2), "%"))), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: "11px", color: "#64748b", marginTop: "8px" }
+  }, "\uBE44\uC6A9 = \uD3B8\uB3C4 \uD134\uC624\uBC84 \u00D7 ", txCostRate.toFixed(2), "% (\uB9E4\uC6D4 \uB9AC\uBC38\uB7F0\uC2F1 \uC2DC \uD3EC\uD2B8\uD3F4\uB9AC\uC624 \uBCC0\uACBD\uBD84\uC5D0 \uB300\uD574 \uBD80\uACFC)")), activeTab === "coresatellite" && (() => {
     const latestCore = coreSignals[coreSignals.length - 1];
     const latestCombined = combinedSignals[combinedSignals.length - 1];
 

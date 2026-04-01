@@ -331,7 +331,7 @@ function runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, 
   return signals;
 }
 
-function calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold) {
+function calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate) {
   const strategyLine = [100];
   const benchmarkLine = [100];
   const splgReturns = returns["SPLG"] || [];
@@ -341,12 +341,29 @@ function calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold) {
   let peak = 100;
   let recoverTarget = 0;
 
+  // -- 거래비용 추적 변수 ------------------------------------------
+  const costRate = (txCostEnabled && txCostRate > 0) ? txCostRate / 100 : 0; // 비율(%)→소수
+  let prevWeights = {};          // 직전 월 보유 비중
+  let totalTurnover = 0;         // 누적 턴오버
+  let totalTxCost = 0;           // 누적 거래비용 (시작 100 기준)
+  let rebalCount = 0;            // 리밸런싱 횟수
+
   for (let i = 0; i < signals.length; i++) {
     const sig = signals[i];
     const m = sig.month;
 
     const bmRet = splgReturns[m] || 0;
     benchmarkLine.push(benchmarkLine[benchmarkLine.length-1] * (1 + bmRet));
+
+    // -- 턴오버 계산: 목표 비중 vs 직전 보유 비중 차이 합 / 2 ------
+    let turnover = 0;
+    if (costRate > 0) {
+      const allTickers = new Set([...Object.keys(sig.weights), ...Object.keys(prevWeights)]);
+      for (const t of allTickers) {
+        turnover += Math.abs((sig.weights[t] || 0) - (prevWeights[t] || 0));
+      }
+      turnover /= 2; // 매수+매도 합이므로 편도 기준 1회
+    }
 
     let portRet = 0;
     if (inStop) {
@@ -356,13 +373,22 @@ function calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold) {
       if (stopCooldown === 0 && curVal >= recoverTarget) {
         inStop = false;
       }
+      prevWeights = { "BIL": 1.0 };
     } else {
       for (const [ticker, weight] of Object.entries(sig.weights)) {
         portRet += weight * ((returns[ticker] || [])[m] || 0);
       }
+      prevWeights = { ...sig.weights };
     }
+
+    // -- 거래비용 차감 (리밸런싱 시점에 비용 발생) ------------------
+    const txCost = turnover * costRate;  // 편도 턴오버 × 편도 비용률
+    totalTurnover += turnover;
+    totalTxCost += txCost;
+    if (turnover > 0.001) rebalCount++;
+
     const prevVal = strategyLine[strategyLine.length-1];
-    const newVal = prevVal * (1 + portRet);
+    const newVal = prevVal * (1 + portRet - txCost);
     strategyLine.push(newVal);
     if (newVal > peak) peak = newVal;
 
@@ -376,7 +402,11 @@ function calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold) {
       }
     }
   }
-  return { strategyLine, benchmarkLine, ddEvents, finalInStop: inStop };
+  return {
+    strategyLine, benchmarkLine, ddEvents, finalInStop: inStop,
+    totalTurnover, totalTxCost, rebalCount,
+    avgTurnover: signals.length > 0 ? totalTurnover / signals.length : 0,
+  };
 }
 
 function calcCAGR(line) {
@@ -840,6 +870,10 @@ const DualMomentumDashboard = () => {
   const [coreAssets,       setCoreAssets]       = usePersist("dm_coreAssets",       ["SPLG", "TLT", "TIP", "GLDM"]);
   const [coreVolWindow,    setCoreVolWindow]    = usePersist("dm_coreVolWindow",    12);
 
+  // -- 거래비용 설정 ------------------------------------------------
+  const [txCostEnabled,    setTxCostEnabled]    = usePersist("dm_txCostEnabled",    false);
+  const [txCostRate,       setTxCostRate]       = usePersist("dm_txCostRate",       0.10); // 편도 기준 % (한국 증권사 미국ETF 수수료 약 0.07~0.25%)
+
   const [btStart, setBtStart] = useState("");
   const [btEnd,   setBtEnd]   = useState("");
 
@@ -883,14 +917,14 @@ const DualMomentumDashboard = () => {
   );
 
   const perf = useMemo(() =>
-    calcPerformance(combinedSignals, returns, ddStopEnabled, ddStopThreshold),
-    [combinedSignals, returns, ddStopEnabled, ddStopThreshold]
+    calcPerformance(combinedSignals, returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate),
+    [combinedSignals, returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate]
   );
 
   // 위성 단독 성과 (코어-위성 비교용)
   const satOnlyPerf = useMemo(() =>
-    coreSatEnabled ? calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold) : null,
-    [signals, returns, ddStopEnabled, ddStopThreshold, coreSatEnabled]
+    coreSatEnabled ? calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate) : null,
+    [signals, returns, ddStopEnabled, ddStopThreshold, coreSatEnabled, txCostEnabled, txCostRate]
   );
 
   const latestSignal = combinedSignals[combinedSignals.length - 1];
@@ -927,9 +961,9 @@ const DualMomentumDashboard = () => {
   };
 
   const btSignals = filterSignals(combinedSignals, btStart, btEnd);
-  const btPerf = btSignals.length > 0 ? calcPerformance(btSignals, returns, ddStopEnabled, ddStopThreshold) : perf;
+  const btPerf = btSignals.length > 0 ? calcPerformance(btSignals, returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate) : perf;
   const btSatOnlySignals = filterSignals(signals, btStart, btEnd);
-  const btSatOnlyPerf = btSatOnlySignals.length > 0 ? calcPerformance(btSatOnlySignals, returns, ddStopEnabled, ddStopThreshold) : null;
+  const btSatOnlyPerf = btSatOnlySignals.length > 0 ? calcPerformance(btSatOnlySignals, returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate) : null;
 
   const perfLen = perf.strategyLine.length;
   const perfChartData = perf.strategyLine.slice(-60).map((s, i) => {
@@ -1148,6 +1182,22 @@ const DualMomentumDashboard = () => {
           >
             그룹한도
           </button>
+        </div>
+        <div style={paramItemStyle}>
+          <button onClick={() => setTxCostEnabled(!txCostEnabled)} style={toggleButtonStyle(txCostEnabled)}>거래비용</button>
+          {txCostEnabled && (
+            <>
+              <input
+                type="range" min="0.01" max="0.50" step="0.01"
+                value={txCostRate}
+                onChange={e => setTxCostRate(parseFloat(e.target.value))}
+                style={{ width: "70px", accentColor: "#f59e0b" }}
+              />
+              <span style={{ fontSize: "12px", fontWeight: "700", minWidth: "42px", color: "#f59e0b" }}>
+                {txCostRate.toFixed(2)}%
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -1739,6 +1789,13 @@ const DualMomentumDashboard = () => {
                 </div>
               </div>
             </div>
+            {txCostEnabled && (
+              <div style={{ ...cardStyle, borderColor: "#f59e0b33" }}>
+                <div style={{ fontSize: "12px", color: "#f59e0b", marginBottom: "4px" }}>
+                  💰 거래비용 반영 중: 편도 {txCostRate.toFixed(2)}% — 누적 비용 {(perf.totalTxCost * 100).toFixed(2)}% / 리밸런싱 {perf.rebalCount}회 / 월평균 턴오버 {(perf.avgTurnover * 100).toFixed(2)}%
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1838,8 +1895,8 @@ const DualMomentumDashboard = () => {
             {canaryEnabled && ((() => {
               const sigBinary  = runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, true, canaryTickers, categoryCap, false, canaryMaxRisk, false, zScoreWindow, zScoreSafe, zScorePanic, zScoreGuardrail);
               const sigZScore  = runDualMomentum(returns, lookback, topN, volScalingEnabled, volTarget, true, canaryTickers, categoryCap, false, canaryMaxRisk, true,  zScoreWindow, zScoreSafe, zScorePanic, zScoreGuardrail);
-              const perfB = calcPerformance(filterSignals(sigBinary, btStart, btEnd), returns, ddStopEnabled, ddStopThreshold);
-              const perfZ = calcPerformance(filterSignals(sigZScore, btStart, btEnd), returns, ddStopEnabled, ddStopThreshold);
+              const perfB = calcPerformance(filterSignals(sigBinary, btStart, btEnd), returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate);
+              const perfZ = calcPerformance(filterSignals(sigZScore, btStart, btEnd), returns, ddStopEnabled, ddStopThreshold, txCostEnabled, txCostRate);
               const compareRows = [
                 { label: "CAGR",   b: (calcCAGR(perfB.strategyLine)*100).toFixed(1)+"%",  z: (calcCAGR(perfZ.strategyLine)*100).toFixed(1)+"%" },
                 { label: "MDD",    b: (calcMDD(perfB.strategyLine)*100).toFixed(1)+"%",   z: (calcMDD(perfZ.strategyLine)*100).toFixed(1)+"%" },
@@ -1942,6 +1999,44 @@ const DualMomentumDashboard = () => {
                 </div>
               </div>
             </div>
+
+            {/* -- 거래비용 요약 카드 --------------------------------- */}
+            {txCostEnabled && (
+              <div style={cardStyle}>
+                <h4 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600", color: "#f59e0b" }}>
+                  💰 거래비용 분석 (편도 {txCostRate.toFixed(2)}%)
+                </h4>
+                <div style={metricsRowStyle}>
+                  <div style={metricCardStyle}>
+                    <div style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "4px" }}>누적 거래비용</div>
+                    <div style={{ fontSize: "20px", fontWeight: "700", color: "#ef4444" }}>
+                      {(btPerf.totalTxCost * 100).toFixed(2)}%
+                    </div>
+                  </div>
+                  <div style={metricCardStyle}>
+                    <div style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "4px" }}>리밸런싱 횟수</div>
+                    <div style={{ fontSize: "20px", fontWeight: "700", color: "#f59e0b" }}>
+                      {btPerf.rebalCount}회
+                    </div>
+                  </div>
+                  <div style={metricCardStyle}>
+                    <div style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "4px" }}>누적 턴오버</div>
+                    <div style={{ fontSize: "20px", fontWeight: "700", color: "#8b5cf6" }}>
+                      {(btPerf.totalTurnover * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div style={metricCardStyle}>
+                    <div style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "4px" }}>월평균 턴오버</div>
+                    <div style={{ fontSize: "20px", fontWeight: "700", color: "#64748b" }}>
+                      {(btPerf.avgTurnover * 100).toFixed(2)}%
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontSize: "11px", color: "#64748b", marginTop: "8px" }}>
+                  비용 = 편도 턴오버 × {txCostRate.toFixed(2)}% (매월 리밸런싱 시 포트폴리오 변경분에 대해 부과)
+                </div>
+              </div>
+            )}
           </div>
         )}
 
