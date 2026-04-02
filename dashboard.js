@@ -6578,7 +6578,7 @@ const InteractiveLineChart = ({
     y: PAD.top + 54,
     fill: "#94a3b8",
     fontSize: "12"
-  }, "\uBCA4\uCE58 ", h.bench.toFixed(1))))), isZoomed && /*#__PURE__*/React.createElement("div", {
+  }, "\uBCA4\uCE58 ", h.bench.toFixed(1)))), isZoomed && /*#__PURE__*/React.createElement("div", {
     ref: navRef,
     onClick: handleNavClick,
     style: {
@@ -6639,7 +6639,7 @@ const InteractiveLineChart = ({
       cursor: "grab",
       minWidth: "12px"
     }
-  }));
+  })));
 };
 const DonutChart = ({
   slices,
