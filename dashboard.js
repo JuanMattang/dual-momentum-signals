@@ -5870,23 +5870,28 @@ function calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold, txCos
   let stopCooldown = 0;
   let peak = 100;
   let recoverTarget = 0;
-  const costRate = (txCostEnabled && txCostRate > 0) ? txCostRate / 100 : 0;
-  let prevWeights = {};
-  let totalTurnover = 0;
-  let totalTxCost = 0;
-  let rebalCount = 0;
+
+  // -- 거래비용 추적 변수 ------------------------------------------
+  const costRate = txCostEnabled && txCostRate > 0 ? txCostRate / 100 : 0; // 비율(%)→소수
+  let prevWeights = {}; // 직전 월 보유 비중
+  let totalTurnover = 0; // 누적 턴오버
+  let totalTxCost = 0; // 누적 거래비용 (시작 100 기준)
+  let rebalCount = 0; // 리밸런싱 횟수
+
   for (let i = 0; i < signals.length; i++) {
     const sig = signals[i];
     const m = sig.month;
     const bmRet = splgReturns[m] || 0;
     benchmarkLine.push(benchmarkLine[benchmarkLine.length - 1] * (1 + bmRet));
+
+    // -- 턴오버 계산: 목표 비중 vs 직전 보유 비중 차이 합 / 2 ------
     let turnover = 0;
     if (costRate > 0) {
       const allTickers = new Set([...Object.keys(sig.weights), ...Object.keys(prevWeights)]);
       for (const t of allTickers) {
         turnover += Math.abs((sig.weights[t] || 0) - (prevWeights[t] || 0));
       }
-      turnover /= 2;
+      turnover /= 2; // 매수+매도 합이므로 편도 기준 1회
     }
     let portRet = 0;
     if (inStop) {
@@ -5896,14 +5901,20 @@ function calcPerformance(signals, returns, ddStopEnabled, ddStopThreshold, txCos
       if (stopCooldown === 0 && curVal >= recoverTarget) {
         inStop = false;
       }
-      prevWeights = { "BIL": 1.0 };
+      prevWeights = {
+        "BIL": 1.0
+      };
     } else {
       for (const [ticker, weight] of Object.entries(sig.weights)) {
         portRet += weight * ((returns[ticker] || [])[m] || 0);
       }
-      prevWeights = { ...sig.weights };
+      prevWeights = {
+        ...sig.weights
+      };
     }
-    const txCost = turnover * costRate;
+
+    // -- 거래비용 차감 (리밸런싱 시점에 비용 발생) ------------------
+    const txCost = turnover * costRate; // 편도 턴오버 × 편도 비용률
     totalTurnover += turnover;
     totalTxCost += txCost;
     if (turnover > 0.001) rebalCount++;
@@ -6202,8 +6213,8 @@ const InteractiveLineChart = ({
   const yMin = Math.min(...yVals) * 0.99;
   const yMax = Math.max(...yVals) * 1.01;
   const yRange = yMax - yMin || 1;
-  const toX = i => PAD.left + (i / Math.max(visible.length - 1, 1)) * CW;
-  const toY = v => PAD.top + CH - ((v - yMin) / yRange) * CH;
+  const toX = i => PAD.left + i / Math.max(visible.length - 1, 1) * CW;
+  const toY = v => PAD.top + CH - (v - yMin) / yRange * CH;
   const stratPts = visible.map((d, i) => `${toX(i)},${toY(d.strat)}`).join(" ");
   const benchPts = visible.map((d, i) => `${toX(i)},${toY(d.bench)}`).join(" ");
   const step = Math.max(1, Math.ceil(visible.length / 9));
@@ -6219,13 +6230,15 @@ const InteractiveLineChart = ({
   const yLabels = Array.from({
     length: yTicks + 1
   }, (_, i) => {
-    const v = yMin + (yRange / yTicks) * i;
+    const v = yMin + yRange / yTicks * i;
     return {
       v,
       y: toY(v)
     };
   });
   const isZoomed = viewRange[0] > 0.001 || viewRange[1] < 0.999;
+
+  // -- 차트 영역 내부인지 판별 --
   const isInChartArea = (clientX, clientY) => {
     if (!svgRef.current) return false;
     const rect = svgRef.current.getBoundingClientRect();
@@ -6233,12 +6246,14 @@ const InteractiveLineChart = ({
     const svgY = (clientY - rect.top) * (SVG_H / rect.height);
     return svgX >= PAD.left && svgX <= SVG_W - PAD.right && svgY >= PAD.top && svgY <= PAD.top + CH;
   };
-  const getSvgFrac = (clientX) => {
+  const getSvgFrac = clientX => {
     if (!svgRef.current) return 0;
     const rect = svgRef.current.getBoundingClientRect();
     return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
   };
-  const handleWheel = (e) => {
+
+  // -- 줌: 차트 영역에서만 동작 --
+  const handleWheel = e => {
     if (!isInChartArea(e.clientX, e.clientY)) return;
     e.preventDefault();
     const frac = getSvgFrac(e.clientX);
@@ -6254,12 +6269,14 @@ const InteractiveLineChart = ({
       ns = 0;
     }
     if (ne > 1) {
-      ns -= (ne - 1);
+      ns -= ne - 1;
       ne = 1;
     }
     setViewRange([Math.max(0, ns), Math.min(1, ne)]);
   };
-  const handleMouseDown = (e) => {
+
+  // -- 드래그: 차트 영역에서만 시작 --
+  const handleMouseDown = e => {
     if (!isInChartArea(e.clientX, e.clientY)) return;
     setIsDragging(true);
     setDragStart({
@@ -6267,7 +6284,7 @@ const InteractiveLineChart = ({
       range: viewRange
     });
   };
-  const handleMouseMove = (e) => {
+  const handleMouseMove = e => {
     if (isDragging && dragStart) {
       const rect = svgRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -6281,7 +6298,7 @@ const InteractiveLineChart = ({
         ns = 0;
       }
       if (ne > 1) {
-        ns -= (ne - 1);
+        ns -= ne - 1;
         ne = 1;
       }
       setViewRange([Math.max(0, ns), Math.min(1, ne)]);
@@ -6290,7 +6307,7 @@ const InteractiveLineChart = ({
     if (rect) {
       const svgX = (e.clientX - rect.left) * (SVG_W / rect.width);
       const chartX = svgX - PAD.left;
-      const idx = Math.round((chartX / CW) * (visible.length - 1));
+      const idx = Math.round(chartX / CW * (visible.length - 1));
       if (isInChartArea(e.clientX, e.clientY)) {
         setHoverIdx(Math.max(0, Math.min(visible.length - 1, idx)));
       } else {
@@ -6303,7 +6320,9 @@ const InteractiveLineChart = ({
     setIsDragging(false);
     setHoverIdx(null);
   };
-  const handleZoom = (direction) => {
+
+  // -- +/- 줌 버튼 핸들러 --
+  const handleZoom = direction => {
     const [s, en] = viewRange;
     const span = en - s;
     const factor = direction === "in" ? 0.7 : 1.4;
@@ -6316,12 +6335,14 @@ const InteractiveLineChart = ({
       ns = 0;
     }
     if (ne > 1) {
-      ns -= (ne - 1);
+      ns -= ne - 1;
       ne = 1;
     }
     setViewRange([Math.max(0, ns), Math.min(1, ne)]);
   };
-  const handleNavMouseDown = (e) => {
+
+  // -- 네비게이션 바 드래그 --
+  const handleNavMouseDown = e => {
     e.stopPropagation();
     setNavDragging(true);
     setNavDragStart({
@@ -6331,7 +6352,7 @@ const InteractiveLineChart = ({
   };
   React.useEffect(() => {
     if (!navDragging) return;
-    const handleNavMove = (e) => {
+    const handleNavMove = e => {
       if (!navRef.current || !navDragStart) return;
       const rect = navRef.current.getBoundingClientRect();
       const dx = (e.clientX - navDragStart.x) / rect.width;
@@ -6344,7 +6365,7 @@ const InteractiveLineChart = ({
         ns = 0;
       }
       if (ne > 1) {
-        ns -= (ne - 1);
+        ns -= ne - 1;
         ne = 1;
       }
       setViewRange([Math.max(0, ns), Math.min(1, ne)]);
@@ -6357,7 +6378,9 @@ const InteractiveLineChart = ({
       window.removeEventListener("mouseup", handleNavUp);
     };
   }, [navDragging, navDragStart]);
-  const handleNavClick = (e) => {
+
+  // -- 네비게이션 바 클릭으로 이동 --
+  const handleNavClick = e => {
     if (!navRef.current) return;
     const rect = navRef.current.getBoundingClientRect();
     const frac = (e.clientX - rect.left) / rect.width;
@@ -6370,22 +6393,24 @@ const InteractiveLineChart = ({
       ns = 0;
     }
     if (ne > 1) {
-      ns -= (ne - 1);
+      ns -= ne - 1;
       ne = 1;
     }
     setViewRange([Math.max(0, ns), Math.min(1, ne)]);
   };
   const h = hoverIdx !== null ? visible[hoverIdx] : null;
   const hx = hoverIdx !== null ? toX(hoverIdx) : 0;
-  const ttX = hoverIdx !== null ? (hx + 10 + 124 > SVG_W - PAD.right ? hx - 134 : hx + 10) : 0;
+  const ttX = hoverIdx !== null ? hx + 10 + 124 > SVG_W - PAD.right ? hx - 134 : hx + 10 : 0;
+
+  // -- 네비 바용 미니 차트 --
   const navH = 32;
   const navAllYVals = data.map(d => d.strat || 0).filter(v => v > 0);
   const navYMin = navAllYVals.length > 0 ? Math.min(...navAllYVals) : 0;
   const navYMax = navAllYVals.length > 0 ? Math.max(...navAllYVals) : 1;
   const navYRange = navYMax - navYMin || 1;
   const navPts = data.map((d, i) => {
-    const x = (i / Math.max(data.length - 1, 1)) * 100;
-    const y = navH - ((((d.strat || 0) - navYMin) / navYRange) * (navH - 4)) - 2;
+    const x = i / Math.max(data.length - 1, 1) * 100;
+    const y = navH - ((d.strat || 0) - navYMin) / navYRange * (navH - 4) - 2;
     return `${x}%,${y}`;
   }).join(" ");
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
@@ -6418,7 +6443,7 @@ const InteractiveLineChart = ({
       justifyContent: "center",
       lineHeight: 1
     },
-    title: "확대"
+    title: "\uD655\uB300"
   }, "+"), /*#__PURE__*/React.createElement("button", {
     onClick: () => handleZoom("out"),
     style: {
@@ -6435,7 +6460,7 @@ const InteractiveLineChart = ({
       justifyContent: "center",
       lineHeight: 1
     },
-    title: "축소"
+    title: "\uCD95\uC18C"
   }, "-"), isZoomed && /*#__PURE__*/React.createElement("button", {
     onClick: () => setViewRange([0, 1]),
     style: {
@@ -6448,7 +6473,7 @@ const InteractiveLineChart = ({
       fontSize: "11px",
       cursor: "pointer"
     }
-  }, "전체")), /*#__PURE__*/React.createElement("svg", {
+  }, "\uC804\uCCB4")), /*#__PURE__*/React.createElement("svg", {
     ref: svgRef,
     viewBox: `0 0 ${SVG_W} ${SVG_H}`,
     style: {
@@ -6742,8 +6767,11 @@ const DualMomentumDashboard = () => {
   const [coreSatRatio, setCoreSatRatio] = usePersist("dm_coreSatRatio", 20);
   const [coreAssets, setCoreAssets] = usePersist("dm_coreAssets", ["SPLG", "TLT", "TIP", "GLDM"]);
   const [coreVolWindow, setCoreVolWindow] = usePersist("dm_coreVolWindow", 12);
+
+  // -- 거래비용 설정 ------------------------------------------------
   const [txCostEnabled, setTxCostEnabled] = usePersist("dm_txCostEnabled", false);
-  const [txCostRate, setTxCostRate] = usePersist("dm_txCostRate", 0.10);
+  const [txCostRate, setTxCostRate] = usePersist("dm_txCostRate", 0.10); // 편도 기준 % (한국 증권사 미국ETF 수수료 약 0.07~0.25%)
+
   const [btStart, setBtStart] = useState("");
   const [btEnd, setBtEnd] = useState("");
 
@@ -7079,9 +7107,17 @@ const DualMomentumDashboard = () => {
     step: "0.01",
     value: txCostRate,
     onChange: e => setTxCostRate(parseFloat(e.target.value)),
-    style: { width: "70px", accentColor: "#f59e0b" }
+    style: {
+      width: "70px",
+      accentColor: "#f59e0b"
+    }
   }), /*#__PURE__*/React.createElement("span", {
-    style: { fontSize: "12px", fontWeight: "700", minWidth: "42px", color: "#f59e0b" }
+    style: {
+      fontSize: "12px",
+      fontWeight: "700",
+      minWidth: "42px",
+      color: "#f59e0b"
+    }
   }, txCostRate.toFixed(2), "%")))), showGroupCaps && /*#__PURE__*/React.createElement("div", {
     style: {
       ...paramBarStyle,
@@ -8233,11 +8269,18 @@ const DualMomentumDashboard = () => {
       fontWeight: "700",
       color: "#f59e0b"
     }
-  }, (calcWinRate(perf.strategyLine, perf.benchmarkLine) * 100).toFixed(1), "%")))), txCostEnabled && /*#__PURE__*/React.createElement("div", {
-    style: { ...cardStyle, borderColor: "#f59e0b33" }
+  }, (calcWinRate(perf.strategyLine, perf.benchmarkLine) * 100).toFixed(1), "%"))), txCostEnabled && /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...cardStyle,
+      borderColor: "#f59e0b33"
+    }
   }, /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: "12px", color: "#f59e0b", marginBottom: "4px" }
-  }, "\uD83D\uDCB0 \uAC70\uB798\uBE44\uC6A9 \uBC18\uC601 \uC911: \uD3B8\uB3C4 ", txCostRate.toFixed(2), "% \u2014 \uB204\uC801 \uBE44\uC6A9 ", (perf.totalTxCost * 100).toFixed(2), "% / \uB9AC\uBC38\uB7F0\uC2F1 ", perf.rebalCount, "\uD68C / \uC6D4\uD3C9\uADE0 \uD134\uC624\uBC84 ", (perf.avgTurnover * 100).toFixed(2), "%")), activeTab === "backtest" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "12px",
+      color: "#f59e0b",
+      marginBottom: "4px"
+    }
+  }, "\uD83D\uDCB0 \uAC70\uB798\uBE44\uC6A9 \uBC18\uC601 \uC911: \uD3B8\uB3C4 ", txCostRate.toFixed(2), "% \u2014 \uB204\uC801 \uBE44\uC6A9 ", (perf.totalTxCost * 100).toFixed(2), "% / \uB9AC\uBC38\uB7F0\uC2F1 ", perf.rebalCount, "\uD68C / \uC6D4\uD3C9\uADE0 \uD134\uC624\uBC84 ", (perf.avgTurnover * 100).toFixed(2), "%"))), activeTab === "backtest" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: cardStyle
   }, /*#__PURE__*/React.createElement("h4", {
     style: {
@@ -8646,39 +8689,80 @@ const DualMomentumDashboard = () => {
       fontWeight: "700",
       color: "#f59e0b"
     }
-  }, (calcWinRate(btPerf.strategyLine, btPerf.benchmarkLine) * 100).toFixed(1), "%")))), txCostEnabled && /*#__PURE__*/React.createElement("div", {
+  }, (calcWinRate(btPerf.strategyLine, btPerf.benchmarkLine) * 100).toFixed(1), "%"))), txCostEnabled && /*#__PURE__*/React.createElement("div", {
     style: cardStyle
   }, /*#__PURE__*/React.createElement("h4", {
-    style: { margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600", color: "#f59e0b" }
+    style: {
+      margin: "0 0 12px 0",
+      fontSize: "14px",
+      fontWeight: "600",
+      color: "#f59e0b"
+    }
   }, "\uD83D\uDCB0 \uAC70\uB798\uBE44\uC6A9 \uBD84\uC11D (\uD3B8\uB3C4 ", txCostRate.toFixed(2), "%)"), /*#__PURE__*/React.createElement("div", {
     style: metricsRowStyle
   }, /*#__PURE__*/React.createElement("div", {
     style: metricCardStyle
   }, /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: "12px", color: "#94a3b8", marginBottom: "4px" }
+    style: {
+      fontSize: "12px",
+      color: "#94a3b8",
+      marginBottom: "4px"
+    }
   }, "\uB204\uC801 \uAC70\uB798\uBE44\uC6A9"), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: "20px", fontWeight: "700", color: "#ef4444" }
+    style: {
+      fontSize: "20px",
+      fontWeight: "700",
+      color: "#ef4444"
+    }
   }, (btPerf.totalTxCost * 100).toFixed(2), "%")), /*#__PURE__*/React.createElement("div", {
     style: metricCardStyle
   }, /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: "12px", color: "#94a3b8", marginBottom: "4px" }
+    style: {
+      fontSize: "12px",
+      color: "#94a3b8",
+      marginBottom: "4px"
+    }
   }, "\uB9AC\uBC38\uB7F0\uC2F1 \uD69F\uC218"), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: "20px", fontWeight: "700", color: "#f59e0b" }
+    style: {
+      fontSize: "20px",
+      fontWeight: "700",
+      color: "#f59e0b"
+    }
   }, btPerf.rebalCount, "\uD68C")), /*#__PURE__*/React.createElement("div", {
     style: metricCardStyle
   }, /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: "12px", color: "#94a3b8", marginBottom: "4px" }
+    style: {
+      fontSize: "12px",
+      color: "#94a3b8",
+      marginBottom: "4px"
+    }
   }, "\uB204\uC801 \uD134\uC624\uBC84"), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: "20px", fontWeight: "700", color: "#8b5cf6" }
+    style: {
+      fontSize: "20px",
+      fontWeight: "700",
+      color: "#8b5cf6"
+    }
   }, (btPerf.totalTurnover * 100).toFixed(1), "%")), /*#__PURE__*/React.createElement("div", {
     style: metricCardStyle
   }, /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: "12px", color: "#94a3b8", marginBottom: "4px" }
+    style: {
+      fontSize: "12px",
+      color: "#94a3b8",
+      marginBottom: "4px"
+    }
   }, "\uC6D4\uD3C9\uADE0 \uD134\uC624\uBC84"), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: "20px", fontWeight: "700", color: "#64748b" }
+    style: {
+      fontSize: "20px",
+      fontWeight: "700",
+      color: "#64748b"
+    }
   }, (btPerf.avgTurnover * 100).toFixed(2), "%"))), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: "11px", color: "#64748b", marginTop: "8px" }
-  }, "\uBE44\uC6A9 = \uD3B8\uB3C4 \uD134\uC624\uBC84 \u00D7 ", txCostRate.toFixed(2), "% (\uB9E4\uC6D4 \uB9AC\uBC38\uB7F0\uC2F1 \uC2DC \uD3EC\uD2B8\uD3F4\uB9AC\uC624 \uBCC0\uACBD\uBD84\uC5D0 \uB300\uD574 \uBD80\uACFC)")), activeTab === "coresatellite" && (() => {
+    style: {
+      fontSize: "11px",
+      color: "#64748b",
+      marginTop: "8px"
+    }
+  }, "\uBE44\uC6A9 = \uD3B8\uB3C4 \uD134\uC624\uBC84 \xD7 ", txCostRate.toFixed(2), "% (\uB9E4\uC6D4 \uB9AC\uBC38\uB7F0\uC2F1 \uC2DC \uD3EC\uD2B8\uD3F4\uB9AC\uC624 \uBCC0\uACBD\uBD84\uC5D0 \uB300\uD574 \uBD80\uACFC)"))), activeTab === "coresatellite" && (() => {
     const latestCore = coreSignals[coreSignals.length - 1];
     const latestCombined = combinedSignals[combinedSignals.length - 1];
 
