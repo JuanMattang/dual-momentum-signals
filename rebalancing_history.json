@@ -326,7 +326,7 @@
     }
   },
   "today": {
-    "date": "2026-04-02",
+    "date": "2026-04-05",
     "type": "오늘",
     "canary": {
       "AGG": {
@@ -425,7 +425,7 @@
       {
         "ticker": "SPLG",
         "name": "미국 대형주",
-        "score": 0.1252
+        "score": 0.1262
       },
       {
         "ticker": "EMB",
