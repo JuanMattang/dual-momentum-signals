@@ -42,6 +42,9 @@ jobs:
       - name: 포트폴리오 스냅샷 저장
         run: python save_snapshot.py
 
+      - name: ETF 월별 수익률 갱신 (REAL_ETF_DATA)
+        run: python update_etf_data.py
+
       - name: Node.js 설정
         uses: actions/setup-node@v4
         with:
@@ -57,6 +60,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add live_prices.js dashboard.js price_history.json rebalancing_history.json rebalancing_history.js
+          git add live_prices.js dashboard.js DualMomentumDashboard.jsx price_history.json rebalancing_history.json rebalancing_history.js
           git diff --cached --quiet || git commit -m "chore: 현재가·대시보드·히스토리 업데이트 $(date +'%Y-%m-%d')"
           git push
