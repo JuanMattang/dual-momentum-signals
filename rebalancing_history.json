@@ -163,161 +163,161 @@
     }
   },
   "last_emergency": {
-    "date": "2026-05-03",
+    "date": "2026-05-17",
     "type": "수시",
     "canary": {
       "AGG": {
-        "score": -0.0816,
-        "z_score": -1.323
+        "score": -0.2499,
+        "z_score": -2.3047
       },
       "EEM": {
-        "score": 0.9631,
-        "z_score": -0.2076
+        "score": 1.2558,
+        "z_score": 0.072
       }
     },
-    "bil_ratio": 0.2743,
+    "bil_ratio": 0.5,
     "portfolio": [
       {
         "ticker": "BIL",
         "name": "초단기채(현금)",
-        "weight": 0.4195
+        "weight": 0.6
       },
       {
         "ticker": "PDBC",
         "name": "원자재",
-        "weight": 0.1451,
-        "score": 0.4634
+        "weight": 0.1,
+        "score": 0.4825
       },
       {
         "ticker": "GLDM",
         "name": "금",
-        "weight": 0.1451,
-        "score": 0.3921
+        "weight": 0.1,
+        "score": 0.3733
       },
       {
         "ticker": "EWY",
         "name": "한국 주식",
-        "weight": 0.0968,
-        "score": 1.3076
-      },
-      {
-        "ticker": "EWZ",
-        "name": "브라질 주식",
-        "weight": 0.0968,
-        "score": 0.4146
+        "weight": 0.0667,
+        "score": 1.5477
       },
       {
         "ticker": "EEM",
         "name": "신흥국 주식",
-        "weight": 0.0968,
-        "score": 0.3484
+        "weight": 0.0667,
+        "score": 0.3682
+      },
+      {
+        "ticker": "EWZ",
+        "name": "브라질 주식",
+        "weight": 0.0667,
+        "score": 0.2998
       }
     ],
     "all_scores": [
       {
         "ticker": "EWY",
         "name": "한국 주식",
-        "score": 1.3076
+        "score": 1.5477
       },
       {
         "ticker": "PDBC",
         "name": "원자재",
-        "score": 0.4634
-      },
-      {
-        "ticker": "EWZ",
-        "name": "브라질 주식",
-        "score": 0.4146
+        "score": 0.4825
       },
       {
         "ticker": "GLDM",
         "name": "금",
-        "score": 0.3921
+        "score": 0.3733
       },
       {
         "ticker": "EEM",
         "name": "신흥국 주식",
-        "score": 0.3484
+        "score": 0.3682
+      },
+      {
+        "ticker": "EWZ",
+        "name": "브라질 주식",
+        "score": 0.2998
       },
       {
         "ticker": "IWM",
         "name": "미국 소형주",
-        "score": 0.3022
+        "score": 0.2944
       },
       {
         "ticker": "QQQM",
         "name": "미국 나스닥100",
-        "score": 0.2252
+        "score": 0.2885
       },
       {
         "ticker": "EWJ",
         "name": "일본 주식",
-        "score": 0.2219
+        "score": 0.2602
       },
       {
         "ticker": "SPLG",
         "name": "미국 대형주",
-        "score": 0.177
+        "score": 0.2069
       },
       {
         "ticker": "EFA",
         "name": "선진국 주식",
-        "score": 0.1629
+        "score": 0.1586
       },
       {
         "ticker": "VNQ",
         "name": "미국 리츠",
-        "score": 0.0988
+        "score": 0.0742
       },
       {
         "ticker": "EMB",
         "name": "신흥국 국채",
-        "score": 0.0713
-      },
-      {
-        "ticker": "MBB",
-        "name": "미국 모기지채",
-        "score": 0.0391
+        "score": 0.0617
       },
       {
         "ticker": "HYG",
         "name": "하이일드 채권",
-        "score": 0.0368
+        "score": 0.029
+      },
+      {
+        "ticker": "MBB",
+        "name": "미국 모기지채",
+        "score": 0.0289
       },
       {
         "ticker": "TIP",
         "name": "물가연동채",
-        "score": 0.033
+        "score": 0.0262
       },
       {
         "ticker": "AGG",
         "name": "미국 종합채권",
-        "score": 0.0266
+        "score": 0.0175
       },
       {
         "ticker": "LQD",
         "name": "투자등급 회사채",
-        "score": 0.0243
+        "score": 0.0174
       },
       {
         "ticker": "BNDX",
         "name": "글로벌 채권",
-        "score": 0.0055
+        "score": -0.0029
       },
       {
         "ticker": "TLT",
         "name": "미국 장기국채",
-        "score": 0.0026
+        "score": -0.0202
       },
       {
         "ticker": "EWG",
         "name": "독일 주식",
-        "score": 0.0005
+        "score": -0.0222
       },
       {
         "ticker": "INDA",
         "name": "인도 주식",
-        "score": -0.1178
+        "score": -0.1381
       }
     ],
     "settings": {
@@ -326,165 +326,328 @@
     }
   },
   "today": {
-    "date": "2026-05-15",
+    "date": "2026-05-17",
     "type": "오늘",
     "canary": {
       "AGG": {
-        "score": -0.1313,
-        "z_score": -1.613
+        "score": -0.2499,
+        "z_score": -2.3047
       },
       "EEM": {
-        "score": 1.9748,
-        "z_score": 0.7589
+        "score": 1.2558,
+        "z_score": 0.072
       }
     },
-    "bil_ratio": 0.2743,
+    "bil_ratio": 0.5,
     "portfolio": [
       {
         "ticker": "BIL",
         "name": "초단기채(현금)",
-        "weight": 0.4195
+        "weight": 0.6
       },
       {
         "ticker": "PDBC",
         "name": "원자재",
-        "weight": 0.1451,
-        "score": 0.4818
+        "weight": 0.1,
+        "score": 0.4825
       },
       {
         "ticker": "GLDM",
         "name": "금",
-        "weight": 0.1451,
-        "score": 0.4055
+        "weight": 0.1,
+        "score": 0.3733
       },
       {
         "ticker": "EWY",
         "name": "한국 주식",
-        "weight": 0.0968,
-        "score": 1.7138
+        "weight": 0.0667,
+        "score": 1.5477
       },
       {
         "ticker": "EEM",
         "name": "신흥국 주식",
-        "weight": 0.0968,
-        "score": 0.4168
+        "weight": 0.0667,
+        "score": 0.3682
       },
       {
         "ticker": "EWZ",
         "name": "브라질 주식",
-        "weight": 0.0968,
-        "score": 0.3321
+        "weight": 0.0667,
+        "score": 0.2998
       }
     ],
     "all_scores": [
       {
         "ticker": "EWY",
         "name": "한국 주식",
-        "score": 1.7138
+        "score": 1.5477
       },
       {
         "ticker": "PDBC",
         "name": "원자재",
-        "score": 0.4818
-      },
-      {
-        "ticker": "EEM",
-        "name": "신흥국 주식",
-        "score": 0.4168
+        "score": 0.4825
       },
       {
         "ticker": "GLDM",
         "name": "금",
-        "score": 0.4055
+        "score": 0.3733
+      },
+      {
+        "ticker": "EEM",
+        "name": "신흥국 주식",
+        "score": 0.3682
       },
       {
         "ticker": "EWZ",
         "name": "브라질 주식",
-        "score": 0.3321
+        "score": 0.2998
       },
       {
         "ticker": "IWM",
         "name": "미국 소형주",
-        "score": 0.3264
+        "score": 0.2944
       },
       {
         "ticker": "QQQM",
         "name": "미국 나스닥100",
-        "score": 0.3083
+        "score": 0.2885
       },
       {
         "ticker": "EWJ",
         "name": "일본 주식",
-        "score": 0.2739
+        "score": 0.2602
       },
       {
         "ticker": "SPLG",
         "name": "미국 대형주",
-        "score": 0.2122
+        "score": 0.2069
       },
       {
         "ticker": "EFA",
         "name": "선진국 주식",
-        "score": 0.1784
+        "score": 0.1586
       },
       {
         "ticker": "VNQ",
         "name": "미국 리츠",
-        "score": 0.0904
+        "score": 0.0742
       },
       {
         "ticker": "EMB",
         "name": "신흥국 국채",
-        "score": 0.071
-      },
-      {
-        "ticker": "MBB",
-        "name": "미국 모기지채",
-        "score": 0.0365
+        "score": 0.0617
       },
       {
         "ticker": "HYG",
         "name": "하이일드 채권",
-        "score": 0.0341
+        "score": 0.029
+      },
+      {
+        "ticker": "MBB",
+        "name": "미국 모기지채",
+        "score": 0.0289
       },
       {
         "ticker": "TIP",
         "name": "물가연동채",
-        "score": 0.0299
+        "score": 0.0262
       },
       {
         "ticker": "AGG",
         "name": "미국 종합채권",
-        "score": 0.0239
+        "score": 0.0175
       },
       {
         "ticker": "LQD",
         "name": "투자등급 회사채",
-        "score": 0.0239
+        "score": 0.0174
       },
       {
         "ticker": "BNDX",
         "name": "글로벌 채권",
-        "score": 0.0054
-      },
-      {
-        "ticker": "EWG",
-        "name": "독일 주식",
-        "score": -0.0014
+        "score": -0.0029
       },
       {
         "ticker": "TLT",
         "name": "미국 장기국채",
-        "score": -0.0054
+        "score": -0.0202
+      },
+      {
+        "ticker": "EWG",
+        "name": "독일 주식",
+        "score": -0.0222
       },
       {
         "ticker": "INDA",
         "name": "인도 주식",
-        "score": -0.1315
+        "score": -0.1381
       }
     ]
   },
   "history": [
+    {
+      "date": "2026-05-17",
+      "type": "수시",
+      "canary": {
+        "AGG": {
+          "score": -0.2499,
+          "z_score": -2.3047
+        },
+        "EEM": {
+          "score": 1.2558,
+          "z_score": 0.072
+        }
+      },
+      "bil_ratio": 0.5,
+      "portfolio": [
+        {
+          "ticker": "BIL",
+          "name": "초단기채(현금)",
+          "weight": 0.6
+        },
+        {
+          "ticker": "PDBC",
+          "name": "원자재",
+          "weight": 0.1,
+          "score": 0.4825
+        },
+        {
+          "ticker": "GLDM",
+          "name": "금",
+          "weight": 0.1,
+          "score": 0.3733
+        },
+        {
+          "ticker": "EWY",
+          "name": "한국 주식",
+          "weight": 0.0667,
+          "score": 1.5477
+        },
+        {
+          "ticker": "EEM",
+          "name": "신흥국 주식",
+          "weight": 0.0667,
+          "score": 0.3682
+        },
+        {
+          "ticker": "EWZ",
+          "name": "브라질 주식",
+          "weight": 0.0667,
+          "score": 0.2998
+        }
+      ],
+      "all_scores": [
+        {
+          "ticker": "EWY",
+          "name": "한국 주식",
+          "score": 1.5477
+        },
+        {
+          "ticker": "PDBC",
+          "name": "원자재",
+          "score": 0.4825
+        },
+        {
+          "ticker": "GLDM",
+          "name": "금",
+          "score": 0.3733
+        },
+        {
+          "ticker": "EEM",
+          "name": "신흥국 주식",
+          "score": 0.3682
+        },
+        {
+          "ticker": "EWZ",
+          "name": "브라질 주식",
+          "score": 0.2998
+        },
+        {
+          "ticker": "IWM",
+          "name": "미국 소형주",
+          "score": 0.2944
+        },
+        {
+          "ticker": "QQQM",
+          "name": "미국 나스닥100",
+          "score": 0.2885
+        },
+        {
+          "ticker": "EWJ",
+          "name": "일본 주식",
+          "score": 0.2602
+        },
+        {
+          "ticker": "SPLG",
+          "name": "미국 대형주",
+          "score": 0.2069
+        },
+        {
+          "ticker": "EFA",
+          "name": "선진국 주식",
+          "score": 0.1586
+        },
+        {
+          "ticker": "VNQ",
+          "name": "미국 리츠",
+          "score": 0.0742
+        },
+        {
+          "ticker": "EMB",
+          "name": "신흥국 국채",
+          "score": 0.0617
+        },
+        {
+          "ticker": "HYG",
+          "name": "하이일드 채권",
+          "score": 0.029
+        },
+        {
+          "ticker": "MBB",
+          "name": "미국 모기지채",
+          "score": 0.0289
+        },
+        {
+          "ticker": "TIP",
+          "name": "물가연동채",
+          "score": 0.0262
+        },
+        {
+          "ticker": "AGG",
+          "name": "미국 종합채권",
+          "score": 0.0175
+        },
+        {
+          "ticker": "LQD",
+          "name": "투자등급 회사채",
+          "score": 0.0174
+        },
+        {
+          "ticker": "BNDX",
+          "name": "글로벌 채권",
+          "score": -0.0029
+        },
+        {
+          "ticker": "TLT",
+          "name": "미국 장기국채",
+          "score": -0.0202
+        },
+        {
+          "ticker": "EWG",
+          "name": "독일 주식",
+          "score": -0.0222
+        },
+        {
+          "ticker": "INDA",
+          "name": "인도 주식",
+          "score": -0.1381
+        }
+      ],
+      "settings": {
+        "lookback": 11,
+        "topN": 5
+      }
+    },
     {
       "date": "2026-05-03",
       "type": "수시",
