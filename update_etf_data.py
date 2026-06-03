@@ -137,17 +137,21 @@ def main():
     print(f"  기존 REAL_ETF_DATA 마지막: {last_existing}")
 
     # ── 각 티커별 새 월 데이터 병합 ──────────────────────────────
+    # 중요: 기존 마지막 날짜 이후의 새 달만 추가 (오래된 데이터 추가 방지)
     added_count = 0
     for ticker, daily in price_history.items():
+        if ticker not in existing:
+            continue  # 기존에 없는 티커는 추가하지 않음
+
         new_returns = calc_monthly_returns(daily)
         if not new_returns:
             continue
 
-        if ticker not in existing:
-            existing[ticker] = {}
+        # 해당 티커의 기존 마지막 날짜 이후만 추가
+        ticker_last = max(existing[ticker].keys()) if existing[ticker] else "0000-00"
 
         for ym, ret in new_returns.items():
-            if ym not in existing[ticker]:
+            if ym > ticker_last:
                 existing[ticker][ym] = ret
                 added_count += 1
 
