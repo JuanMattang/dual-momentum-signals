@@ -326,16 +326,16 @@
     }
   },
   "today": {
-    "date": "2026-06-04",
+    "date": "2026-06-05",
     "type": "오늘",
     "canary": {
       "AGG": {
-        "score": -0.0914,
-        "z_score": -1.3802
+        "score": -0.0607,
+        "z_score": -1.2011
       },
       "EEM": {
-        "score": 2.1819,
-        "z_score": 0.9567
+        "score": 1.9335,
+        "z_score": 0.7194
       }
     },
     "bil_ratio": 0.2371,
@@ -349,138 +349,138 @@
         "ticker": "PDBC",
         "name": "원자재",
         "weight": 0.1526,
-        "score": 0.4025
+        "score": 0.3869
       },
       {
         "ticker": "GLDM",
         "name": "금",
         "weight": 0.1526,
-        "score": 0.3497
+        "score": 0.361
       },
       {
         "ticker": "EWY",
         "name": "한국 주식",
         "weight": 0.1017,
-        "score": 1.9906
+        "score": 1.8643
       },
       {
         "ticker": "EEM",
         "name": "신흥국 주식",
         "weight": 0.1017,
-        "score": 0.4605
+        "score": 0.4433
       },
       {
         "ticker": "EWZ",
         "name": "브라질 주식",
         "weight": 0.1017,
-        "score": 0.3504
+        "score": 0.3559
       }
     ],
     "all_scores": [
       {
         "ticker": "EWY",
         "name": "한국 주식",
-        "score": 1.9906
+        "score": 1.8643
       },
       {
         "ticker": "EEM",
         "name": "신흥국 주식",
-        "score": 0.4605
+        "score": 0.4433
       },
       {
         "ticker": "PDBC",
         "name": "원자재",
-        "score": 0.4025
-      },
-      {
-        "ticker": "EWZ",
-        "name": "브라질 주식",
-        "score": 0.3504
+        "score": 0.3869
       },
       {
         "ticker": "GLDM",
         "name": "금",
-        "score": 0.3497
+        "score": 0.361
       },
       {
-        "ticker": "EWJ",
-        "name": "일본 주식",
-        "score": 0.3238
-      },
-      {
-        "ticker": "QQQM",
-        "name": "미국 나스닥100",
-        "score": 0.3217
+        "ticker": "EWZ",
+        "name": "브라질 주식",
+        "score": 0.3559
       },
       {
         "ticker": "IWM",
         "name": "미국 소형주",
-        "score": 0.3194
+        "score": 0.3393
       },
       {
-        "ticker": "SPLG",
-        "name": "미국 대형주",
-        "score": 0.2128
+        "ticker": "EWJ",
+        "name": "일본 주식",
+        "score": 0.3264
+      },
+      {
+        "ticker": "QQQM",
+        "name": "미국 나스닥100",
+        "score": 0.3145
       },
       {
         "ticker": "EFA",
         "name": "선진국 주식",
-        "score": 0.2112
+        "score": 0.2209
+      },
+      {
+        "ticker": "SPLG",
+        "name": "미국 대형주",
+        "score": 0.2048
       },
       {
         "ticker": "VNQ",
         "name": "미국 리츠",
-        "score": 0.079
+        "score": 0.0983
       },
       {
         "ticker": "EMB",
         "name": "신흥국 국채",
-        "score": 0.0677
-      },
-      {
-        "ticker": "MBB",
-        "name": "미국 모기지채",
-        "score": 0.0402
+        "score": 0.07
       },
       {
         "ticker": "EWG",
         "name": "독일 주식",
-        "score": 0.0394
+        "score": 0.0467
+      },
+      {
+        "ticker": "MBB",
+        "name": "미국 모기지채",
+        "score": 0.0413
       },
       {
         "ticker": "HYG",
         "name": "하이일드 채권",
-        "score": 0.0305
+        "score": 0.0324
       },
       {
         "ticker": "LQD",
         "name": "투자등급 회사채",
-        "score": 0.0254
+        "score": 0.0276
       },
       {
         "ticker": "AGG",
         "name": "미국 종합채권",
-        "score": 0.0252
+        "score": 0.0269
       },
       {
         "ticker": "TIP",
         "name": "물가연동채",
-        "score": 0.0183
+        "score": 0.0184
       },
       {
         "ticker": "TLT",
         "name": "미국 장기국채",
-        "score": 0.0106
+        "score": 0.0129
       },
       {
         "ticker": "BNDX",
         "name": "글로벌 채권",
-        "score": 0.0079
+        "score": 0.009
       },
       {
         "ticker": "INDA",
         "name": "인도 주식",
-        "score": -0.1003
+        "score": -0.0878
       }
     ]
   },
