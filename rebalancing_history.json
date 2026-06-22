@@ -326,7 +326,7 @@
     }
   },
   "today": {
-    "date": "2026-06-19",
+    "date": "2026-06-22",
     "type": "오늘",
     "canary": {
       "AGG": {
@@ -425,7 +425,7 @@
       {
         "ticker": "SPLG",
         "name": "미국 대형주",
-        "score": 0.1811
+        "score": 0.1923
       },
       {
         "ticker": "VNQ",
