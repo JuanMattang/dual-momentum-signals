@@ -326,7 +326,7 @@
     }
   },
   "today": {
-    "date": "2026-07-03",
+    "date": "2026-07-06",
     "type": "오늘",
     "canary": {
       "AGG": {
@@ -418,14 +418,14 @@
         "score": 0.1921
       },
       {
+        "ticker": "SPLG",
+        "name": "미국 대형주",
+        "score": 0.1649
+      },
+      {
         "ticker": "EFA",
         "name": "선진국 주식",
         "score": 0.1616
-      },
-      {
-        "ticker": "SPLG",
-        "name": "미국 대형주",
-        "score": 0.1395
       },
       {
         "ticker": "VNQ",
