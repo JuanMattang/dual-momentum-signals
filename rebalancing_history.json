@@ -326,16 +326,16 @@
     }
   },
   "today": {
-    "date": "2026-08-03",
+    "date": "2026-08-04",
     "type": "오늘",
     "canary": {
       "AGG": {
-        "score": -0.1402,
-        "z_score": -1.6649
+        "score": -0.1615,
+        "z_score": -1.7892
       },
       "EEM": {
-        "score": 0.0891,
-        "z_score": -1.0426
+        "score": 0.1576,
+        "z_score": -0.9771
       }
     },
     "bil_ratio": 0.5692,
@@ -349,73 +349,73 @@
         "ticker": "PDBC",
         "name": "원자재",
         "weight": 0.0862,
-        "score": 0.3583
+        "score": 0.3343
       },
       {
         "ticker": "IWM",
         "name": "미국 소형주",
         "weight": 0.0862,
-        "score": 0.2075
+        "score": 0.2284
       },
       {
         "ticker": "EWY",
         "name": "한국 주식",
         "weight": 0.0574,
-        "score": 1.0054
-      },
-      {
-        "ticker": "EWZ",
-        "name": "브라질 주식",
-        "weight": 0.0574,
-        "score": 0.2237
+        "score": 1.0454
       },
       {
         "ticker": "EEM",
         "name": "신흥국 주식",
         "weight": 0.0574,
-        "score": 0.2174
+        "score": 0.2217
+      },
+      {
+        "ticker": "EWZ",
+        "name": "브라질 주식",
+        "weight": 0.0574,
+        "score": 0.216
       }
     ],
     "all_scores": [
       {
         "ticker": "EWY",
         "name": "한국 주식",
-        "score": 1.0054
+        "score": 1.0454
       },
       {
         "ticker": "PDBC",
         "name": "원자재",
-        "score": 0.3583
-      },
-      {
-        "ticker": "EWZ",
-        "name": "브라질 주식",
-        "score": 0.2237
-      },
-      {
-        "ticker": "EEM",
-        "name": "신흥국 주식",
-        "score": 0.2174
+        "score": 0.3343
       },
       {
         "ticker": "IWM",
         "name": "미국 소형주",
-        "score": 0.2075
+        "score": 0.2284
+      },
+      {
+        "ticker": "EEM",
+        "name": "신흥국 주식",
+        "score": 0.2217
+      },
+      {
+        "ticker": "EWZ",
+        "name": "브라질 주식",
+        "score": 0.216
       },
       {
         "ticker": "EWJ",
         "name": "일본 주식",
-        "score": 0.1949
-      },
-      {
-        "ticker": "EFA",
-        "name": "선진국 주식",
-        "score": 0.1513
+        "score": 0.2017
       },
       {
         "ticker": "QQQM",
         "name": "미국 나스닥100",
-        "score": 0.1478
+        "score": 0.168
+      },
+      {
+        "ticker": "EFA",
+        "name": "선진국 주식",
+        "score": 0.1561
       },
       {
         "ticker": "SPLG",
@@ -425,7 +425,7 @@
       {
         "ticker": "VNQ",
         "name": "미국 리츠",
-        "score": 0.0922
+        "score": 0.0936
       },
       {
         "ticker": "GLDM",
@@ -435,52 +435,52 @@
       {
         "ticker": "EWG",
         "name": "독일 주식",
-        "score": 0.0298
+        "score": 0.0425
       },
       {
         "ticker": "EMB",
         "name": "신흥국 국채",
-        "score": 0.0193
+        "score": 0.0203
       },
       {
         "ticker": "HYG",
         "name": "하이일드 채권",
-        "score": 0.0077
-      },
-      {
-        "ticker": "MBB",
-        "name": "미국 모기지채",
-        "score": -0.0026
+        "score": 0.0056
       },
       {
         "ticker": "BNDX",
         "name": "글로벌 채권",
-        "score": -0.0042
+        "score": -0.0027
+      },
+      {
+        "ticker": "MBB",
+        "name": "미국 모기지채",
+        "score": -0.0047
       },
       {
         "ticker": "AGG",
         "name": "미국 종합채권",
-        "score": -0.0097
-      },
-      {
-        "ticker": "TIP",
-        "name": "물가연동채",
-        "score": -0.0215
+        "score": -0.0108
       },
       {
         "ticker": "LQD",
         "name": "투자등급 회사채",
-        "score": -0.0256
+        "score": -0.0269
+      },
+      {
+        "ticker": "TIP",
+        "name": "물가연동채",
+        "score": -0.0285
       },
       {
         "ticker": "INDA",
         "name": "인도 주식",
-        "score": -0.0434
+        "score": -0.0365
       },
       {
         "ticker": "TLT",
         "name": "미국 장기국채",
-        "score": -0.0595
+        "score": -0.0602
       }
     ]
   },
