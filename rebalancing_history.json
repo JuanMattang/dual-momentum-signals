@@ -326,7 +326,7 @@
     }
   },
   "today": {
-    "date": "2026-09-23",
+    "date": "2026-09-24",
     "type": "오늘",
     "canary": {
       "AGG": {
@@ -361,7 +361,7 @@
         "ticker": "EWY",
         "name": "한국 주식",
         "weight": 0.0591,
-        "score": 0.9939
+        "score": 1.0304
       },
       {
         "ticker": "EWZ",
@@ -380,7 +380,7 @@
       {
         "ticker": "EWY",
         "name": "한국 주식",
-        "score": 0.9939
+        "score": 1.0304
       },
       {
         "ticker": "PDBC",
@@ -405,12 +405,12 @@
       {
         "ticker": "QQQM",
         "name": "미국 나스닥100",
-        "score": 0.1803
+        "score": 0.19
       },
       {
         "ticker": "IWM",
         "name": "미국 소형주",
-        "score": 0.1637
+        "score": 0.1703
       },
       {
         "ticker": "EFA",
@@ -475,7 +475,7 @@
       {
         "ticker": "TLT",
         "name": "미국 장기국채",
-        "score": -0.0774
+        "score": -0.078
       },
       {
         "ticker": "INDA",
