@@ -326,16 +326,16 @@
     }
   },
   "today": {
-    "date": "2026-11-05",
+    "date": "2026-11-06",
     "type": "오늘",
     "canary": {
       "AGG": {
-        "score": -0.1255,
-        "z_score": -1.5791
+        "score": -0.0785,
+        "z_score": -1.305
       },
       "EEM": {
-        "score": -0.2611,
-        "z_score": -1.3772
+        "score": -1.3468,
+        "z_score": -2.4143
       }
     },
     "bil_ratio": 0.7852,
@@ -346,66 +346,46 @@
         "weight": 0.7852
       },
       {
-        "ticker": "EWY",
-        "name": "한국 주식",
-        "weight": 0.043,
-        "score": 0.5647
-      },
-      {
         "ticker": "PDBC",
         "name": "원자재",
         "weight": 0.043,
-        "score": 0.406
+        "score": 0.4143
       },
       {
-        "ticker": "EWJ",
-        "name": "일본 주식",
+        "ticker": "EWY",
+        "name": "한국 주식",
         "weight": 0.043,
-        "score": 0.1625
+        "score": 0.3541
+      },
+      {
+        "ticker": "SPLG",
+        "name": "미국 대형주",
+        "weight": 0.043,
+        "score": 0.1227
       },
       {
         "ticker": "IWM",
         "name": "미국 소형주",
         "weight": 0.043,
-        "score": 0.1538
+        "score": 0.1008
       },
       {
-        "ticker": "QQQM",
-        "name": "미국 나스닥100",
+        "ticker": "EWJ",
+        "name": "일본 주식",
         "weight": 0.043,
-        "score": 0.1265
+        "score": 0.0931
       }
     ],
     "all_scores": [
       {
-        "ticker": "EWY",
-        "name": "한국 주식",
-        "score": 0.5647
-      },
-      {
         "ticker": "PDBC",
         "name": "원자재",
-        "score": 0.406
+        "score": 0.4143
       },
       {
-        "ticker": "EWJ",
-        "name": "일본 주식",
-        "score": 0.1625
-      },
-      {
-        "ticker": "IWM",
-        "name": "미국 소형주",
-        "score": 0.1538
-      },
-      {
-        "ticker": "QQQM",
-        "name": "미국 나스닥100",
-        "score": 0.1265
-      },
-      {
-        "ticker": "EEM",
-        "name": "신흥국 주식",
-        "score": 0.1263
+        "ticker": "EWY",
+        "name": "한국 주식",
+        "score": 0.3541
       },
       {
         "ticker": "SPLG",
@@ -413,74 +393,94 @@
         "score": 0.1227
       },
       {
+        "ticker": "IWM",
+        "name": "미국 소형주",
+        "score": 0.1008
+      },
+      {
+        "ticker": "EWJ",
+        "name": "일본 주식",
+        "score": 0.0931
+      },
+      {
         "ticker": "VNQ",
         "name": "미국 리츠",
-        "score": 0.1078
+        "score": 0.0875
       },
       {
         "ticker": "EFA",
         "name": "선진국 주식",
-        "score": 0.1009
+        "score": 0.0695
+      },
+      {
+        "ticker": "EEM",
+        "name": "신흥국 주식",
+        "score": 0.061
+      },
+      {
+        "ticker": "QQQM",
+        "name": "미국 나스닥100",
+        "score": 0.0551
       },
       {
         "ticker": "EWG",
         "name": "독일 주식",
-        "score": 0.0235
+        "score": 0.0059
       },
       {
         "ticker": "EWZ",
         "name": "브라질 주식",
-        "score": 0.0151
+        "score": -0.0003
       },
       {
         "ticker": "BNDX",
         "name": "글로벌 채권",
-        "score": -0.0129
+        "score": -0.0114
       },
       {
         "ticker": "MBB",
         "name": "미국 모기지채",
-        "score": -0.0274
+        "score": -0.0261
       },
       {
         "ticker": "AGG",
         "name": "미국 종합채권",
-        "score": -0.0289
+        "score": -0.0265
       },
       {
         "ticker": "HYG",
         "name": "하이일드 채권",
-        "score": -0.0291
-      },
-      {
-        "ticker": "EMB",
-        "name": "신흥국 국채",
-        "score": -0.0317
+        "score": -0.0321
       },
       {
         "ticker": "TIP",
         "name": "물가연동채",
-        "score": -0.0347
+        "score": -0.0332
+      },
+      {
+        "ticker": "EMB",
+        "name": "신흥국 국채",
+        "score": -0.0368
       },
       {
         "ticker": "LQD",
         "name": "투자등급 회사채",
-        "score": -0.0449
-      },
-      {
-        "ticker": "TLT",
-        "name": "미국 장기국채",
-        "score": -0.0552
+        "score": -0.0434
       },
       {
         "ticker": "GLDM",
         "name": "금",
-        "score": -0.0585
+        "score": -0.0505
+      },
+      {
+        "ticker": "TLT",
+        "name": "미국 장기국채",
+        "score": -0.0533
       },
       {
         "ticker": "INDA",
         "name": "인도 주식",
-        "score": -0.0744
+        "score": -0.0746
       }
     ]
   },
