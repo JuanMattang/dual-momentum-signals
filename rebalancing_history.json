@@ -326,16 +326,16 @@
     }
   },
   "today": {
-    "date": "2026-11-18",
+    "date": "2026-11-19",
     "type": "오늘",
     "canary": {
       "AGG": {
-        "score": -0.3448,
-        "z_score": -2.8582
+        "score": -0.292,
+        "z_score": -2.5498
       },
       "EEM": {
-        "score": -1.2799,
-        "z_score": -2.3504
+        "score": -1.3985,
+        "z_score": -2.4637
       }
     },
     "bil_ratio": 1.0,
@@ -349,13 +349,13 @@
         "ticker": "EWY",
         "name": "한국 주식",
         "weight": 0.0,
-        "score": 0.3919
+        "score": 0.4064
       },
       {
         "ticker": "PDBC",
         "name": "원자재",
         "weight": 0.0,
-        "score": 0.357
+        "score": 0.3268
       },
       {
         "ticker": "SPLG",
@@ -364,28 +364,28 @@
         "score": 0.1227
       },
       {
-        "ticker": "EWJ",
-        "name": "일본 주식",
-        "weight": 0.0,
-        "score": 0.0985
-      },
-      {
         "ticker": "IWM",
         "name": "미국 소형주",
         "weight": 0.0,
-        "score": 0.093
+        "score": 0.0973
+      },
+      {
+        "ticker": "EWJ",
+        "name": "일본 주식",
+        "weight": 0.0,
+        "score": 0.0904
       }
     ],
     "all_scores": [
       {
         "ticker": "EWY",
         "name": "한국 주식",
-        "score": 0.3919
+        "score": 0.4064
       },
       {
         "ticker": "PDBC",
         "name": "원자재",
-        "score": 0.357
+        "score": 0.3268
       },
       {
         "ticker": "SPLG",
@@ -393,94 +393,94 @@
         "score": 0.1227
       },
       {
-        "ticker": "EWJ",
-        "name": "일본 주식",
-        "score": 0.0985
-      },
-      {
         "ticker": "IWM",
         "name": "미국 소형주",
-        "score": 0.093
+        "score": 0.0973
+      },
+      {
+        "ticker": "EWJ",
+        "name": "일본 주식",
+        "score": 0.0904
       },
       {
         "ticker": "VNQ",
         "name": "미국 리츠",
-        "score": 0.0723
+        "score": 0.0756
       },
       {
         "ticker": "QQQM",
         "name": "미국 나스닥100",
-        "score": 0.0692
+        "score": 0.0738
       },
       {
         "ticker": "EEM",
         "name": "신흥국 주식",
-        "score": 0.0651
+        "score": 0.0579
       },
       {
         "ticker": "EFA",
         "name": "선진국 주식",
-        "score": 0.0554
+        "score": 0.044
       },
       {
         "ticker": "BNDX",
         "name": "글로벌 채권",
-        "score": -0.0166
+        "score": -0.0177
       },
       {
         "ticker": "EWG",
         "name": "독일 주식",
-        "score": -0.0195
-      },
-      {
-        "ticker": "EWZ",
-        "name": "브라질 주식",
-        "score": -0.0236
-      },
-      {
-        "ticker": "INDA",
-        "name": "인도 주식",
-        "score": -0.0398
+        "score": -0.0346
       },
       {
         "ticker": "AGG",
         "name": "미국 종합채권",
-        "score": -0.0402
-      },
-      {
-        "ticker": "HYG",
-        "name": "하이일드 채권",
-        "score": -0.0402
+        "score": -0.0374
       },
       {
         "ticker": "MBB",
         "name": "미국 모기지채",
-        "score": -0.0417
+        "score": -0.0382
+      },
+      {
+        "ticker": "HYG",
+        "name": "하이일드 채권",
+        "score": -0.04
       },
       {
         "ticker": "TIP",
         "name": "물가연동채",
-        "score": -0.0462
+        "score": -0.0456
+      },
+      {
+        "ticker": "INDA",
+        "name": "인도 주식",
+        "score": -0.0479
       },
       {
         "ticker": "EMB",
         "name": "신흥국 국채",
-        "score": -0.0498
+        "score": -0.049
+      },
+      {
+        "ticker": "EWZ",
+        "name": "브라질 주식",
+        "score": -0.0535
       },
       {
         "ticker": "LQD",
         "name": "투자등급 회사채",
-        "score": -0.0609
+        "score": -0.0572
       },
       {
         "ticker": "TLT",
         "name": "미국 장기국채",
-        "score": -0.0808
+        "score": -0.073
       },
       {
         "ticker": "GLDM",
         "name": "금",
-        "score": -0.1086
+        "score": -0.1372
       }
     ]
   },
